@@ -350,21 +350,31 @@ function portrait(t){
   }finally{ctx=oc;S=oS;extraT=oX}
   return portraitCache[t]=c.toDataURL();
 }
-let introOpen=false,introAt=0;const INTRO_MIN=1500;
-function closeIntro(){if(!introOpen)return;introOpen=false;banner=0;stage.classList.remove('dim');held.length=0;bombHeld=false;last=0;
+let introOpen=false,introAt=0,saveTipDue=false;const INTRO_MIN=1500;
+function canSave(){try{localStorage.setItem('mp-test','1');localStorage.removeItem('mp-test');return true}catch(e){return false}}
+function showIntroCard(col,kind,name,desc,wis,tip,img){
+  const el=$('intro');el.style.setProperty('--c',col);
+  const im=$('introImg');im.hidden=!img;if(img)im.src=img;$('introKind').textContent=kind;
+  $('introName').textContent=name;$('introDesc').textContent=desc;const w=$('introWis');w.textContent=wis?'“'+wis+'”':'';w.hidden=!wis;const tp=$('introTip');tp.textContent=tip?'Tip: '+tip:'';tp.hidden=!tip;
+  el.hidden=false;el.classList.remove('out');const hn=$('introHint');hn.style.animation='none';void hn.offsetWidth;hn.style.animation='';introOpen=true;stage.classList.add('dim');introAt=performance.now();held.length=0;
+}
+function showSaveTip(){
+  saveTipDue=false;try{localStorage.setItem('mp-savetip','1')}catch(e){}
+  showIntroCard('#6ee08a','Good to know','You can save your game','Press Save level any time while playing. Your saves appear under Saved levels on the right and on the start screen, so you can come back to them later.','','Saves stay in this browser on this device. Clearing browsing data or playing in a private window removes them.','');
+}
+function closeIntro(){if(!introOpen)return;if(saveTipDue&&state==='play'){showSaveTip();return}introOpen=false;banner=0;stage.classList.remove('dim');held.length=0;bombHeld=false;last=0;
   const el=$('intro');el.classList.add('out');setTimeout(()=>{if(!introOpen)el.hidden=true},300)}
 function loreName(t){return LORE[t].name||ETYPES[t].name}
 function loreCol(t){return LORE[t].col||ETYPES[t].col}
 function checkIntros(){
   if(state!=='play')return;
+  let seen=true;try{seen=!!localStorage.getItem('mp-savetip')}catch(e){}
+  saveTipDue=level===1&&!seen&&canSave();
   const types=[...new Set(enemies.map(e=>e.type))];if(captives.length)types.push('captive');
   const I=INTRO[level],it=I?(I.type==='lion'?'giant':I.type):null;
-  const t=it&&types.includes(it)?it:LORE_ORDER.find(x=>types.includes(x)&&!met.has(x));if(!t)return;
+  const t=it&&types.includes(it)?it:LORE_ORDER.find(x=>types.includes(x)&&!met.has(x));if(!t){if(saveTipDue)showSaveTip();return}
   met.add(t);try{localStorage.setItem('mp-met',JSON.stringify([...met]))}catch(e){}
-  const el=$('intro');el.style.setProperty('--c',loreCol(t));
-  $('introImg').src=portrait(t);$('introKind').textContent=LORE[t].kind||(t==='giant'?'Boss':'New demon');
-  $('introName').textContent=loreName(t);$('introDesc').textContent=LORE[t].desc;$('introWis').textContent='“'+LORE[t].wis+'”';const tp=$('introTip');tp.textContent=LORE[t].tip?'Tip: '+LORE[t].tip:'';tp.hidden=!LORE[t].tip;
-  el.hidden=false;el.classList.remove('out');const hn=$('introHint');hn.style.animation='none';void hn.offsetWidth;hn.style.animation='';introOpen=true;stage.classList.add('dim');introAt=performance.now();held.length=0;
+  showIntroCard(loreCol(t),LORE[t].kind||(t==='giant'?'Boss':'New demon'),loreName(t),LORE[t].desc,LORE[t].wis,LORE[t].tip,portrait(t));
 }
 function tickIntro(dt){if(introOpen&&state!=='play'&&state!=='pause')closeIntro()}
 function openGuide(){
