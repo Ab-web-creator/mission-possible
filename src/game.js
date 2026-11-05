@@ -100,7 +100,7 @@ let state='title',level=1,score=0,lives=3,best=0;
 let captives=[],trail=[],allyShots=[];
 let flameD,grid,hidden,items,bombs,enemies,flameT,flameK,danger,exit,particles,player;
 const ITEM_LIFE=20,END_TIME=6,DEATH_TIME=4;
-const BASE_BOMBS=5,MAX_BOMBS=8,BASE_FIRE=2,MAX_FIRE=5,MAX_HP=12,EXTRA_TIME=20,LETTERS=['G','R','A','C','E'];
+const BASE_BOMBS=5,MAX_BOMBS=8,BASE_FIRE=2,MAX_FIRE=4,MAX_HP=12,EXTRA_TIME=20,LETTERS=['G','R','A','C','E'];
 let coins=new Set(),coinsTotal=0,extraT=0,extraUsed=false,extraBanner=0,endWait=0,letters=new Set();
 let shake=0,grace=0,banner=0,clearT=0,clearBonus=0,time=0,last=0,openedSfx=false;
 try{best=+localStorage.getItem('fusewarren-best')||0}catch(e){}
@@ -609,7 +609,7 @@ function slideFree(x,y,b){
 }
 function kickBomb(b,dx,dy){if(slideFree(b.x+dx,b.y+dy,b)){b.slide=[dx,dy];b.sp=0;sfx.kick()}}
 function addFlame(x,y,k,d){flameT[y][x]=FLAME_LIFE;flameK[y][x]=k;flameD[y][x]=d||4}
-let melts=[],tunnels=[];
+let melts=[],tunnels=[];const TOUCH=0.15;
 function tryTunnel(){const p=player;if(!p.alive||!tunnels.length)return;
   const ti=tunnelAt(p.x,p.y);if(ti<0||p.moving){if(ti<0&&!p.moving)p.tpLock=false;return}
   if(p.tpLock)return;const d=tunnels[(ti+1)%tunnels.length];if(!d||tunnels.length<2)return;
@@ -702,17 +702,20 @@ function tryHeld(){
 function arrive(){
   const p=player;
   tryTunnel();
-  const k=key(p.x,p.y),it=items[k];
-  if(coins.has(k)){coins.delete(k);coinFx.push({x:p.x,y:p.y,t:0});score+=20;tone(1320,0.06,'square',0.04);tone(1760,0.08,'square',0.04,0,0.05);
+  pickUp(p.x,p.y);
+}
+function pickUp(x,y){
+  const p=player,k=key(x,y),it=items[k];
+  if(coins.has(k)){coins.delete(k);coinFx.push({x,y,t:0});score+=20;tone(1320,0.06,'square',0.04);tone(1760,0.08,'square',0.04,0,0.05);
     if(!coins.size&&!extraUsed)startExtra();hud()}
-  if(it&&it.type==='letter'){delete items[k];score+=100;sfx.pick();gainLetter(it.letter,p.x,p.y)}
-  else if(it){delete items[k];score+=50;sfx.pick();floatText(p.x,p.y,ITEMS[it.type].label,ITEMS[it.type].col);
+  if(it&&it.type==='letter'){delete items[k];score+=100;sfx.pick();gainLetter(it.letter,x,y)}
+  else if(it){delete items[k];score+=50;sfx.pick();floatText(x,y,ITEMS[it.type].label,ITEMS[it.type].col);
     if(it.type==='bomb')p.bombs=Math.min(MAX_BOMBS,p.bombs+1);
     if(it.type==='fire')p.fire=Math.min(MAX_FIRE,p.fire+1);
     if(it.type==='speed'){p.fastT=Math.min(30,(p.fastT>0?p.fastT:0)+FAST_TIME);p.fastWarn=0;[660,880,1175].forEach((f,i)=>tone(f,0.08,'square',0.04,0,i*0.05))}
     if(it.type==='shield'){p.shield=10;p.shieldPick=true;p.warnSec=0}
     if(it.type==='heal')p.hp=Math.min(MAX_HP,p.hp+2);
-    if(it.type==='reveal')meltAll(p.x,p.y);
+    if(it.type==='reveal')meltAll(x,y);
     if(it.type==='quick')p.fuse=Math.max(MIN_FUSE,+((p.fuse||BASE_FUSE)-0.3).toFixed(2));
     if(it.type==='fullheal'){p.hp=MAX_HP;[523,659,784,1046].forEach((f,i)=>tone(f,0.12,'triangle',0.05,0,i*0.07))}
     hud()}
@@ -731,6 +734,9 @@ function updatePlayer(dt){
   if(!p.moving)tryTunnel();
   const d=curDir();
   if(p.moving){
+    if(tunnelAt(p.x,p.y)>=0&&tunnelAt(p.tx,p.ty)<0&&p.prog>=0.5)p.tpLock=false;
+    if(p.prog>=TOUCH&&tunnelAt(p.tx,p.ty)>=0&&tunnelAt(p.x,p.y)<0){p.x=p.tx;p.y=p.ty;p.moving=false;p.prog=0;arrive();return}
+    if(p.prog>=TOUCH)pickUp(p.tx,p.ty);
     if(d&&DIRS[d][0]===-p.dx&&DIRS[d][1]===-p.dy){
       [p.x,p.tx]=[p.tx,p.x];[p.y,p.ty]=[p.ty,p.y];p.dx=-p.dx;p.dy=-p.dy;p.prog=1-p.prog;p.face=d}
     p.prog+=(p.fastT>0?Math.max(FAST_SPEED,p.speed):p.speed)*dt;
@@ -986,6 +992,7 @@ function choose(e){
   if(e.type==='skitter'&&extraT<=0&&!here&&player.alive){const a=lineOfFire(e,99);
     if(a){const f=opts.find(o=>o[0]===a[0]&&o[1]===a[1]);if(f){e.rush=true;e.pace=0;return f}}}
   if((e.type==='spitter'||e.type==='suspect'||e.type==='murder')&&extraT<=0){
+    if(e.type==='spitter'&&(e.dx||e.dy)&&enemyAt(e.x+e.dx,e.y+e.dy,e)){const back=opts.find(o=>o[0]===-e.dx&&o[1]===-e.dy);if(back&&Math.random()<0.8)return back}
     const f=opts.find(o=>o[0]===e.dx&&o[1]===e.dy),side=opts.filter(o=>o[0]*e.dx+o[1]*e.dy===0);
     if(f)return side.length&&Math.random()<0.3?side[rand(side.length)]:f;
     if(side.length)return side[rand(side.length)];
@@ -1668,8 +1675,8 @@ function drawEnemy(e){
     ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
     ctx.shadowColor='rgba(255,40,70,.85)';ctx.shadowBlur=S*0.18;
     ctx.strokeStyle=flash?'#fff':'#d4243f';ctx.lineWidth=Math.max(2,S*0.07);
-    for(let i=0;i<4;i++){const l=Math.sin(e.wob*20+i*1.7)*S*0.06,yy=cy-S*0.2+i*S*0.12;
-      for(const sd of[-1,1]){ctx.beginPath();ctx.moveTo(cx+sd*S*0.16,yy);ctx.lineTo(cx+sd*S*0.4,yy-S*0.14+(sd>0?-l:l));ctx.lineTo(cx+sd*S*0.56,yy+S*0.12+(sd>0?-l:l));ctx.stroke()}}
+    ctx.beginPath();for(let i=0;i<4;i++){const l=Math.sin(e.wob*20+i*1.7)*S*0.06,yy=cy-S*0.2+i*S*0.12;
+      for(const sd of[-1,1]){ctx.moveTo(cx+sd*S*0.16,yy);ctx.lineTo(cx+sd*S*0.4,yy-S*0.14+(sd>0?-l:l));ctx.lineTo(cx+sd*S*0.56,yy+S*0.12+(sd>0?-l:l))}}ctx.stroke();
     ctx.fillStyle=flash?'#fff':'#c8102e';ctx.beginPath();ctx.ellipse(cx,cy+S*0.14,S*0.28,S*0.31,0,0,Math.PI*2);ctx.fill();
     ctx.shadowBlur=0;
     ctx.fillStyle=flash?'#fff':'#16020a';ctx.beginPath();ctx.moveTo(cx,cy+S*0.0);ctx.lineTo(cx+S*0.1,cy+S*0.13);ctx.lineTo(cx,cy+S*0.28);ctx.lineTo(cx-S*0.1,cy+S*0.13);ctx.closePath();ctx.fill();
@@ -1679,8 +1686,8 @@ function drawEnemy(e){
     ctx.fillStyle='#f2ede4';for(const sd of[-1,1]){ctx.beginPath();ctx.moveTo(cx+sd*S*0.03,cy-S*0.08);ctx.lineTo(cx+sd*S*0.11,cy-S*0.08);ctx.lineTo(cx+sd*S*0.05,cy+S*0.05);ctx.fill()}
     const gl=0.75+0.25*Math.sin(time*9+e.wob);
     ctx.fillStyle=`rgb(255,${200+Math.round(55*gl)},60)`;ctx.shadowColor='#ffd040';ctx.shadowBlur=S*0.08;
-    for(const [ox,oy,r] of [[-0.06,-0.26,0.045],[0.06,-0.26,0.045],[-0.13,-0.21,0.032],[0.13,-0.21,0.032],[-0.03,-0.18,0.025],[0.03,-0.18,0.025]]){ctx.beginPath();ctx.arc(cx+ox*S,cy+oy*S,r*S,0,Math.PI*2);ctx.fill()}
-    ctx.restore();
+    ctx.beginPath();for(const [ox,oy,r] of [[-0.06,-0.26,0.045],[0.06,-0.26,0.045],[-0.13,-0.21,0.032],[0.13,-0.21,0.032],[-0.03,-0.18,0.025],[0.03,-0.18,0.025]]){ctx.moveTo(cx+(ox+r)*S,cy+oy*S);ctx.arc(cx+ox*S,cy+oy*S,r*S,0,Math.PI*2)}
+    ctx.fill();ctx.restore();
   }else if(e.type==='wisp'){
     ctx.save();ctx.globalAlpha=0.85;
     const g=ctx.createRadialGradient(cx,cy,S*0.05,cx,cy,S*0.45);g.addColorStop(0,flash?'#fff':'#e6f5ff');g.addColorStop(0.6,col);g.addColorStop(1,'rgba(159,216,255,0)');
