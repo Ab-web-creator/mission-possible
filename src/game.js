@@ -283,7 +283,7 @@ function startLevel(L){
   bombs=[];particles=[];shots=[];melts=[];coinFx=[];levelStartScore=score;capCalls=0;lastCall=-1;
   if(L&&L.g)applyLayout(L);else{COLS=17;ROWS=15;gen()}
   const sx=L&&L.g&&L.px||spawnX,sy=L&&L.g&&L.py||spawnY;calcBossMax();
-  Object.assign(player,{x:sx,y:sy,tx:sx,ty:sy,prog:0,moving:false,alive:true,deathT:0,face:'down',fastT:0,tpLock:false});
+  Object.assign(player,{x:sx,y:sy,tx:sx,ty:sy,prog:0,moving:false,alive:true,deathT:0,face:'down',fastT:0,tpLock:false,stay:[]});
   curLayout=L&&L.g?L:layoutOf();
   trail=[];allyShots=[];for(const c of captives){if(c.state==='free'){Object.assign(c,{mode:'perch',fetched:0,clim:1,moving:false,wait:0});[c.px,c.py]=perchOf(c)}else{c.px=c.x;c.py=c.y}c.hp=2;c.inv=0}
   player.shield=Math.max(player.shield,2);
@@ -627,7 +627,7 @@ function tryTunnel(){const p=player;if(!p.alive||!tunnels.length)return;
     const fr=DLIST.map(([dx,dy])=>[d[0]+dx,d[1]+dy]).filter(([x,y])=>inB(x,y)&&grid[y][x]===EMPTY&&tunnelAt(x,y)<0&&!enemyAt(x,y,o));
     const alt=tunnels.find((t,k)=>k!==ti&&t!==d&&!enemies.some(q=>q!==o&&occ(q)[0]===t[0]&&occ(q)[1]===t[1]));
     const to=fr.length?fr[rand(fr.length)]:alt;if(to){o.x=o.tx=to[0];o.y=o.ty=to[1];o.moving=false;o.prog=0;o.tpLock=tunnelAt(to[0],to[1])>=0}}
-  burst(p.x,p.y,'#7ae8ff',14,3,0.08);p.x=p.tx=d[0];p.y=p.ty=d[1];p.moving=false;p.prog=0;p.tpLock=true;tunnelWhoosh();burst(p.x,p.y,'#7ae8ff',14,3,0.08)}
+  burst(p.x,p.y,'#7ae8ff',14,3,0.08);p.x=p.tx=d[0];p.y=p.ty=d[1];p.moving=false;p.prog=0;p.tpLock=true;p.stay=[...held];tunnelWhoosh();burst(p.x,p.y,'#7ae8ff',14,3,0.08)}
 function tunnelAt(x,y){for(let i=0;i<tunnels.length;i++)if(tunnels[i][0]===x&&tunnels[i][1]===y)return i;return -1}
 function tunnelWhoosh(){if(!ac||muted||!noiseBuf)return;noiseHit(ac.currentTime,0.35,'bandpass',400,2400,0.12,2);tone(330,0.3,'sine',0.04,500)}
 function tunnelDest(i,avoidPlayer){const n=tunnels.length;for(let s=1;s<n;s++){const [x,y]=tunnels[(i+s)%n];
@@ -705,7 +705,7 @@ function tryStart(d){
   p.face=d;p.tx=nx;p.ty=ny;p.dx=dx;p.dy=dy;p.prog=0;p.moving=true;return true;
 }
 function tryHeld(){
-  for(let i=held.length-1;i>=0;i--)if(tryStart(held[i]))return true;
+  for(let i=held.length-1;i>=0;i--)if(!(player.stay&&player.stay.includes(held[i]))&&tryStart(held[i]))return true;
   if(held.length)player.face=held[held.length-1];
   return false;
 }
@@ -742,6 +742,7 @@ function updatePlayer(dt){
     if(s<=3&&s!==p.fastWarn&&p.fastT>0){p.fastWarn=s;tone(s<=1?990:740,0.07,'triangle',0.05)}
     if(p.fastT<=0){p.fastT=0;p.fastWarn=0;tone(500,0.3,'triangle',0.05,-300);hud()}}
   if(!p.moving)tryTunnel();
+  if(p.stay&&p.stay.length)p.stay=p.stay.filter(k=>held.includes(k));
   const d=curDir();
   if(p.moving){
     if(tunnelAt(p.x,p.y)>=0&&tunnelAt(p.tx,p.ty)<0&&p.prog>=0.5)p.tpLock=false;
