@@ -1,0 +1,15 @@
+{
+  "name": "mission-possible",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Mission (Im)possible - a spiritual-battle maze game for children, inspired by BOOM.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.4.10"
+  }
+}
