@@ -2221,3 +2221,7 @@ addEventListener('mousedown',introDismiss,true);
 player=makePlayer();startLevel();banner=0;grace=99;
 hud();titleCard();renderSlots();resize();requestAnimationFrame(frame);
 })();
+// Phones and tablets: the game needs a keyboard, so say so up front.
+if(matchMedia('(hover: none) and (pointer: coarse)').matches||Math.min(screen.width,screen.height)<600){
+  const note=document.getElementById('mobileNote'),app=document.getElementById('app');note.hidden=false;app.hidden=true;
+  document.getElementById('mnGo').onclick=()=>{note.hidden=true;app.hidden=false}}
