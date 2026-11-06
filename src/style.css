@@ -62,7 +62,7 @@ div.fg{display:flex;gap:20px;align-items:center;padding:14px 0;border-bottom:1px
 .stat b{font-family:var(--pixel);font-size:1.5rem;font-weight:400}
 
 .kit{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-#kCap{grid-column:1/-1}
+
 .chip{display:flex;justify-content:space-between;gap:8px;font-family:var(--pixel);font-size:1rem;letter-spacing:.06em;padding:5px 13px;border:1px solid var(--line);border-radius:3px;color:var(--dim);font-variant-numeric:tabular-nums}
 .chip b{color:var(--ink);font-weight:400}
 .chip.on{border-color:var(--cyan);color:var(--cyan)}
