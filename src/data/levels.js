@@ -15,7 +15,7 @@ export const LEVEL23_NEW = 'wisp';
 export const LEVEL_MAPS = {
   3: [
     '...cc..cccc....',
-    '.#c#c#c#.#c#c#c',
+    '.#c#c#c#.#c#c#.',
     '.cc.ccccc.ccccc',
     'c#c#c#c#c#c#.#.',
     'c.ccM.M.M.Mcccc',

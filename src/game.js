@@ -293,7 +293,7 @@ function startLevel(L,M){
   if(L&&L.g)applyLayout(L);else{COLS=17;ROWS=15;gen()}
   placeGiants();
   const sx=L&&L.g&&L.px||spawnX,sy=L&&L.g&&L.py||spawnY;calcBossMax();
-  Object.assign(player,{x:sx,y:sy,tx:sx,ty:sy,prog:0,moving:false,alive:true,deathT:0,face:'down',fastT:0,tpLock:false,stay:[]});
+  Object.assign(player,{x:sx,y:sy,tx:sx,ty:sy,prog:0,moving:false,alive:true,deathT:0,face:'down',fastT:0,tpLock:false,stay:[],cheer:0});
   curLayout=L&&L.g?L:layoutOf();
   player.shield=Math.max(player.shield,2);
   const special=INTRO[level]||lionCount()||(level>1&&(level-1)%5===0);
@@ -1290,6 +1290,8 @@ function frame(ts){
     if(clearT>3.3&&!clearSwitched&&clearLevel===FINAL_LEVEL){clearSwitched=true;startFinale()}
     if(clearT>3.3&&!clearSwitched){clearSwitched=true;clearLevel=level;level++;startLevel();banner=0}
     if(clearT>5.5&&state==='clear'){state='play';banner=0;saveProgress();checkIntros()}}
+  if(player){const want=player.alive&&((state==='play'&&enemies&&!enemies.length)||(state==='clear'&&!clearSwitched))?1:0;
+    player.cheer=(player.cheer||0)+(want-(player.cheer||0))*Math.min(1,dt*(want?5:12))}
   musicTick();tickIntro(dt);if(player&&player.fastT>0&&Math.ceil(player.fastT)!==player.fastShown){player.fastShown=Math.ceil(player.fastT);hud()}
   document.documentElement.classList.toggle('nocur',(state==='play'||state==='clear')&&performance.now()-lastMouse>1500);
   draw();requestAnimationFrame(frame);
@@ -1966,7 +1968,18 @@ function drawEnemy(e){
     for(let i=0;i<e.hp;i++){ctx.fillStyle='#ffd36b';ctx.fillRect(cx-S*0.14+i*S*0.18,cy+S*0.12,S*0.1,S*0.06)}
   }
 }
-function drawHeroBot([fx,fy],walk,lampSide){
+// A wooden torch held up in celebration: a tapered handle, a dark wrapped head and the same flame as a set-down lamp.
+function drawHeldTorch(x,y,R0,a,fl){ctx.save();ctx.globalAlpha*=a;
+  const top=y-R0*0.05,bot=y+R0*0.6;
+  ctx.fillStyle='#8a5a2e';ctx.beginPath();ctx.moveTo(x-R0*0.13,top);ctx.lineTo(x+R0*0.13,top);ctx.lineTo(x+R0*0.08,bot);ctx.quadraticCurveTo(x,bot+R0*0.05,x-R0*0.08,bot);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#6a4020';ctx.fillRect(x+R0*0.02,top+R0*0.15,R0*0.04,bot-top-R0*0.2);
+  ctx.fillStyle='#4a2c14';ctx.beginPath();ctx.roundRect(x-R0*0.17,top-R0*0.08,R0*0.34,R0*0.24,R0*0.06);ctx.fill();
+  ctx.strokeStyle='#2e1a0a';ctx.lineWidth=Math.max(1,R0*0.04);ctx.beginPath();ctx.moveTo(x-R0*0.17,top+R0*0.04);ctx.lineTo(x+R0*0.17,top+R0*0.04);ctx.stroke();
+  const W=R0*(0.3+0.04*fl),H=R0*(0.95+0.12*fl),sw=Math.sin(time*13)*R0*0.08,fb=top-R0*0.06;
+  ctx.fillStyle='#ff6a1c';flamePath(x,fb,W,H,sw);ctx.fill();
+  ctx.fillStyle='#ffb52a';flamePath(x,fb-R0*0.02,W*0.72,H*0.78,sw*0.8);ctx.fill();
+  ctx.fillStyle='#fff2b0';flamePath(x,fb-R0*0.04,W*0.42,H*0.5,sw*0.6);ctx.fill();ctx.restore()}
+function drawHeroBot([fx,fy],walk,lampSide,cheer=0){// cheer 0..1: lantern raised overhead to celebrate
   const R0=S*0.38,bob=Math.sin(time*3)*S*0.012,side=fx!==0?fx:lampSide||1;
   ctx.fillStyle='rgba(0,0,0,.28)';ctx.beginPath();ctx.ellipse(0,R0*1.05,R0*0.85,R0*0.2,0,0,Math.PI*2);ctx.fill();
   ctx.save();ctx.translate(0,-bob);
@@ -1988,12 +2001,18 @@ function drawHeroBot([fx,fy],walk,lampSide){
       if(blink)ctx.fillRect(vx+sd*sp+fx*R0*0.05-er,-R0*0.13+vy,er*2,R0*0.05);
       else ctx.arc(vx+sd*sp+fx*R0*0.05,-R0*0.12+vy,er,0,Math.PI*2);ctx.fill()}
     ctx.shadowBlur=0}
-  const lx=side*R0*1.12,ly=R0*0.45;
-  const g=ctx.createRadialGradient(lx,ly,0,lx,ly,R0*1.2);g.addColorStop(0,`rgba(255,226,140,${0.45*fl})`);g.addColorStop(1,'rgba(255,210,110,0)');
-  ctx.fillStyle=g;ctx.beginPath();ctx.arc(lx,ly,R0*1.2,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle='#9aa2b4';ctx.lineWidth=Math.max(1.5,S*0.035);ctx.beginPath();ctx.moveTo(side*R0*0.8,R0*0.25);ctx.lineTo(lx,ly-R0*0.32);ctx.stroke();
+  const ck=cheer*cheer*(3-2*cheer),lx=side*R0*(1.12-0.1*ck),ly=R0*(0.45-1.7*ck),gr=R0*(1.2+0.7*ck);
+  const g=ctx.createRadialGradient(lx,ly,0,lx,ly,gr);g.addColorStop(0,`rgba(255,226,140,${(0.45+0.35*ck)*fl})`);g.addColorStop(1,'rgba(255,210,110,0)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(lx,ly,gr,0,Math.PI*2);ctx.fill();
+  if(ck>0.5)drawHeldTorch(lx,ly,R0,(ck-0.5)*2,fl);// as it is raised, the lantern turns into a burning torch
+  {const aw=Math.max(3.5,S*(0.09+0.03*ck));ctx.lineCap='round';ctx.beginPath();ctx.moveTo(side*R0*(0.8+0.17*ck),R0*(0.25-0.25*ck));ctx.lineTo(lx,ly+R0*(-0.32+0.74*ck));// raised arm runs along the body's edge, clear of the visor
+   ctx.strokeStyle='#e9ecf2';ctx.lineWidth=aw;ctx.stroke()}// arm in the body's colour
+  if(ck>0.6){ctx.fillStyle='#fff3b0';for(let i=0;i<5;i++){const a=time*2+i*1.257,d=R0*(0.55+0.15*Math.sin(time*5+i)),k=0.5+0.5*Math.sin(time*7+i*2);
+    ctx.globalAlpha=(ck-0.6)/0.4*k;ctx.beginPath();ctx.arc(lx+Math.cos(a)*d,ly+Math.sin(a)*d,R0*0.06,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1}
+  ctx.save();ctx.globalAlpha*=Math.max(0,1-ck*2);ctx.translate(lx,ly-R0*0.3);ctx.scale(1+0.45*ck,1+0.45*ck);ctx.translate(-lx,-(ly-R0*0.3));
   ctx.fillStyle='#8a6a2a';ctx.beginPath();ctx.roundRect(lx-R0*0.17,ly-R0*0.28,R0*0.34,R0*0.48,R0*0.06);ctx.fill();
   ctx.fillStyle=`rgba(255,${220+Math.round(30*fl)},140,1)`;ctx.beginPath();ctx.roundRect(lx-R0*0.11,ly-R0*0.2,R0*0.22,R0*0.33,R0*0.05);ctx.fill();
+  ctx.restore();
   ctx.restore();
 }
 function drawPlayer(){
@@ -2006,7 +2025,8 @@ function drawPlayer(){
   if(p.alive&&p.hurtT>0&&Math.sin(time*40)>0)ctx.globalAlpha=0.3;
   if(!p.alive){const k=Math.max(0,1-p.deathT/1.1);ctx.rotate(p.deathT*8);ctx.scale(k,k)}
   const f=DIRS[p.face];if(f[0])p.side=f[0];
-  drawHeroBot(p.moving?f:[0,1],p.moving?Math.sin(p.prog*Math.PI*2):0,p.side);
+  const ch=p.cheer||0;if(ch>0)ctx.translate(0,-Math.abs(Math.sin(time*6))*S*0.07*ch);// a small happy bounce
+  drawHeroBot(p.moving?f:[0,1],p.moving?Math.sin(p.prog*Math.PI*2):0,p.side,ch);
   ctx.restore();
   if(p.alive&&p.shield>0){
     const t=p.shield;let col,on=true;
@@ -2136,18 +2156,18 @@ function drawFinale(){
   // stars that twinkle once the celebration starts
   if(t>4){for(let i=0;i<40;i++){const x=((i*97)%100)/100*W,y=((i*61)%100)/100*H*0.9,k=0.5+0.5*Math.sin(time*3+i);
     ctx.globalAlpha=ap(4,1.5)*dim*k*0.8;ctx.fillStyle=i%3?'#ffe28a':'#fff8e0';ctx.beginPath();ctx.arc(x,y,S*(0.03+0.03*k),0,Math.PI*2);ctx.fill()}}
-  ctx.globalAlpha=ap(0.3)*dim;fitFont('ALL YOUR ENEMIES ARE DEFEATED',S*0.75,'Bungee, Impact, sans-serif',W*0.86);ctx.fillStyle='#7a3b12';
+  ctx.globalAlpha=ap(0.3)*dim;fitFont('ALL YOUR ENEMIES ARE DEFEATED',S*0.75,'Bungee, Impact, sans-serif',W*0.68);ctx.fillStyle='#7a3b12';
   ctx.fillText('ALL YOUR ENEMIES ARE DEFEATED',W/2,H*0.2+3);ctx.fillStyle='#ffb347';ctx.fillText('ALL YOUR ENEMIES ARE DEFEATED',W/2,H*0.2);
   const names=LORE_ORDER.filter(k=>k!=='giant').map(loreName).join(', ')+' \u2026 and even Death itself.';
   ctx.globalAlpha=ap(1.2,1.2)*dim;ctx.font=`${Math.max(11,S*0.36)}px Silkscreen, monospace`;ctx.fillStyle='#e8dcc8';
-  wrapText(names,W*0.7).forEach((l,i)=>ctx.fillText(l,W/2,H*0.31+i*S*0.55));
-  const pulse=1+0.04*Math.sin(time*4);ctx.globalAlpha=ap(4)*dim;ctx.save();ctx.translate(W/2,H*0.52);ctx.scale(pulse,pulse);
-  fitFont('Time to celebrate your perfection!',S*0.62,'Bungee, Impact, sans-serif',W*0.8);ctx.fillStyle='#fff3b0';ctx.fillText('Time to celebrate your perfection!',0,0);ctx.restore();
+  wrapText(names,W*0.58).forEach((l,i)=>ctx.fillText(l,W/2,H*0.29+i*S*0.55));
+  const pulse=1+0.04*Math.sin(time*4);ctx.globalAlpha=ap(4)*dim;ctx.save();ctx.translate(W/2,H*0.56);ctx.scale(pulse,pulse);
+  fitFont('Time to celebrate your perfection!',S*0.62,'Bungee, Impact, sans-serif',W*0.64);ctx.fillStyle='#fff3b0';ctx.fillText('Time to celebrate your perfection!',0,0);ctx.restore();
   ctx.globalAlpha=ap(7.5);ctx.font=`${Math.max(12,S*0.42)}px Silkscreen, monospace`;ctx.fillStyle='#d8c8ff';
-  wrapText('But\u2026 what is that little thing creeping in the corner?!',W*0.7).forEach((l,i)=>ctx.fillText(l,W/2,H*0.68+i*S*0.6));
+  wrapText('But\u2026 what is that little thing creeping in the corner?!',W*0.58).forEach((l,i)=>ctx.fillText(l,W/2,H*0.68+i*S*0.6));
   if(t>7.5)drawCreeper(t-7.5,W,H);
   if(t>FINALE_READY){ctx.globalAlpha=0.55+0.45*Math.sin(time*4);ctx.font=`${Math.max(11,S*0.34)}px Silkscreen, monospace`;ctx.fillStyle='#ffd36b';
-    wrapText('Press Enter to start again at level 1, keeping your lives, lamps and gifts',W*0.56).forEach((l,i)=>ctx.fillText(l,W/2,H*0.86+i*S*0.5))}
+    wrapText('Press Enter to start again at level 1, keeping your lives, lamps and gifts',W*0.5).forEach((l,i)=>ctx.fillText(l,W/2,H*0.86+i*S*0.5))}
   ctx.globalAlpha=1;
 }
 // The little thing in the corner: a small shadow with glowing eyes that creeps in, stops, and peeks.
