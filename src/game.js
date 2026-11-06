@@ -38,22 +38,23 @@ function widen(n){
 }
 let camX=0;
 function updateCamera(dt){
-  const sw=stage.clientWidth,bw=COLS*S;
+  const sw=stage.clientWidth-2*BD,bw=(COLS-2)*S;
   if(!grid||bw<=sw+1){if(camX!==0){camX=0;cv.style.transform=''}return}
-  const [px]=rpos(player),target=Math.max(0,Math.min(bw-sw,(px+.5)*S-sw/2));
+  const [px]=rpos(player),target=Math.max(0,Math.min(bw-sw,(px-.5)*S-sw/2));
   camX=state==='play'&&dt>0?camX+(target-camX)*Math.min(1,dt*6):target;
   if(Math.abs(camX-target)<0.5)camX=target;
   cv.style.transform=`translateX(${-Math.round(camX)}px)`;
 }
 function resize(){
   const a=playArea();
-  S=Math.max(12,Math.floor(Math.min(a.h/ROWS,(a.w-SIDE_MIN)/COLS)));
-  stage.style.width=COLS*S+'px';
-  DPR=Math.max(1,Math.min(2,window.devicePixelRatio||1,1500/(COLS*S)));
-  cv.style.width=COLS*S+'px';cv.style.height=ROWS*S+'px';
-  cv.width=COLS*S*DPR;cv.height=ROWS*S*DPR;
+  S=Math.max(12,Math.floor(Math.min((a.h-2*BD)/(ROWS-2),(a.w-SIDE_MIN-2*BD)/(COLS-2))));
+  stage.style.width=(COLS-2)*S+2*BD+'px';
+  DPR=Math.max(1,Math.min(2,window.devicePixelRatio||1,1500/((COLS-2)*S)));
+  cv.style.width=(COLS-2)*S+'px';cv.style.height=(ROWS-2)*S+'px';
+  cv.width=(COLS-2)*S*DPR;cv.height=(ROWS-2)*S*DPR;
 }
-const SIDE_MIN=200,SIDE_PREF=320,APP=document.getElementById('app');
+// The outer wall ring stays in the grid but is cropped from view; BD is the frame drawn instead.
+const BD=7,SIDE_MIN=200,SIDE_PREF=320,APP=document.getElementById('app');
 function playArea(){const cs=getComputedStyle(APP);const w=APP.clientWidth-18,h=APP.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);return{w,h}}
 new ResizeObserver(resize).observe(APP);
 function fitCols(){
@@ -340,6 +341,14 @@ function slotKeys(slots){const ks=Object.keys(slots);
   const auto=ks.filter(k=>k[0]!=='m').sort((a,b)=>+b-+a);return man.concat(auto)}
 function slotTitle(sl){return sl.name?esc(sl.name):'Level '+sl.level+(sl.mid?' <small>\u00b7 mid-level</small>':'')}
 let met=new Set();try{met=new Set(JSON.parse(localStorage.getItem('mp-met')||'[]'))}catch(e){}
+const iconCache={};
+function itemIcon(t){
+  if(iconCache[t])return iconCache[t];
+  const size=64,c=document.createElement('canvas');c.width=c.height=size*2;const oc=ctx,oS=S,oT=time;
+  try{ctx=c.getContext('2d');ctx.setTransform(2,0,0,2,0,0);S=size;time=0;drawItem('0,0',{type:t,life:99})}
+  finally{ctx=oc;S=oS;time=oT}
+  return iconCache[t]=c.toDataURL();
+}
 const portraitCache={};
 function portrait(t){
   if(portraitCache[t])return portraitCache[t];
@@ -379,8 +388,11 @@ function checkIntros(){
 function tickIntro(dt){if(introOpen&&state!=='play'&&state!=='pause')closeIntro()}
 function openGuide(){
   audio();resumeTo=state;if(state==='play')pause();
-  const list=LORE_ORDER.filter(t=>met.has(t));
-  showOverlay(`<h2>Field guide</h2>
+  // every demon introduced up to the current level, plus whatever is on the board now
+  const first={captive:11};for(const n in INTRO){const t=INTRO[n].type==='lion'?'giant':INTRO[n].type;first[t]=Math.min(first[t]||99,+n)}
+  const here=new Set(enemies.map(e=>e.type));if(captives.length)here.add('captive');
+  const list=LORE_ORDER.filter(t=>first[t]<=level||here.has(t));
+  showOverlay(`<h2 class="fgh">Field guide</h2>
     ${list.length?list.map(t=>`<div class="fg"><img src="${portrait(t)}" alt=""><div><b style="color:${loreCol(t)}">${loreName(t)}</b><span>${LORE[t].desc}</span><i>“${LORE[t].wis}”</i>${LORE[t].tip?`<span class="fgtip">Tip: ${LORE[t].tip}</span>`:''}</div></div>`).join(''):'<p class="muted">You haven’t met anyone yet. Demons appear here once you meet them.</p>'}
     <p class="muted">${LORE_ORDER.length-list.length?(LORE_ORDER.length-list.length)+' more still to meet.':'You have met them all.'}</p>
     <button class="go" id="fgClose" type="button">Close</button>`);
@@ -407,7 +419,7 @@ function loadSlot(n){
   music.lastLevel=-1;beginPlay(sl.v===LAYOUT_V?sl.layout:null);return true;
 }
 function startAt(n){n=Math.max(1,Math.min(99,Math.floor(+n)||1));try{localStorage.setItem('mp-pick',n)}catch(e){}level=n;score=0;lives=3;letters=new Set();player=makePlayer();music.lastLevel=-1;beginPlay()}
-function pickedLevel(){const i=$('lvlNum');return i?i.value:1}
+function pickedLevel(){const i=$('lvlNum');if(i)return i.value;const b=$('goBtn');return b&&b.dataset.l||lastPick()}
 function continueGame(){
   const sv=loadSave();if(!sv)return newGame();
   if(loadSlot(sv.level))return;
@@ -416,17 +428,31 @@ function continueGame(){
   beginPlay();
 }
 function slotLine(sl){return '<i class="hearts">'+'♥'.repeat(Math.min(sl.lives,5))+(sl.lives>5?'+':'')+'</i> · Lamps '+sl.bombs+' · Reach '+sl.fire}
-function saveBlock(sv,fresh){
-  let last=1;try{last=+localStorage.getItem('mp-pick')||1}catch(e){}last=Math.min(50,last);
-  if(fresh&&level>1)last=level;
-  const has=slotKeys(loadSlots()).length;
-  return `<div class="btns">
-    <div class="pick"><label class="sec" for="lvlNum">Start at level</label>
-      <select id="lvlNum">${Array.from({length:50},(_,i)=>i+1).map(n=>`<option value="${n}"${n===last?' selected':''}>Level ${n}${n%10===0?' \u00b7 Boss':INTRO[n]?' \u00b7 new demon':''}</option>`).join('')}</select>
-      <button class="go" id="goBtn" type="button" style="padding:8px 16px">${fresh?'Play again':'Start'}</button></div>
-    ${has?`<div class="pick"><label class="sec" for="lvlPick">Or load a saved game</label>${slotSelect()}<button class="go alt" id="pickBtn" type="button" style="padding:8px 14px">Load</button></div>`:''}
-  </div>
-  <p class="muted">Nothing is saved automatically. Press <b>Save level</b> while playing to keep the current board, hearts and power-ups; your saves appear under <b>Saved levels</b> on the right.</p>`;
+function lastPick(){let n=1;try{n=+localStorage.getItem('mp-pick')||1}catch(e){}return Math.min(50,Math.max(1,n))}
+function startBlock(fresh){
+  const n=fresh?level:lastPick();
+  return `<div class="startrow"><button class="go big" id="goBtn" type="button" data-l="${n}">${fresh?'Play level '+n+' again':'Start level '+n}</button></div>`;
+}
+let pickFrom=null,pickHTML='';
+function levelPicker(){
+  if(introOpen||!['title','over','play','pause'].includes(state))return;
+  audio();pickFrom=state;pickHTML=state==='play'?'':$('card').innerHTML;state='pick';held.length=0;bombHeld=false;
+  const last=pickFrom==='over'?level:lastPick(),has=slotKeys(loadSlots()).length;
+  showOverlay(`<h2>Choose a level</h2>
+    <div class="btns">
+      <div class="pick"><label class="sec" for="lvlNum">Start at level</label>
+        <select id="lvlNum">${Array.from({length:50},(_,i)=>i+1).map(n=>`<option value="${n}"${n===last?' selected':''}>Level ${n}${n%10===0?' \u00b7 Boss':INTRO[n]?' \u00b7 new demon':''}</option>`).join('')}</select>
+        <button class="go" id="goBtn" type="button" style="padding:8px 16px">Start</button></div>
+      ${has?`<div class="pick"><label class="sec" for="lvlPick">Or load a saved game</label>${slotSelect()}<button class="go alt" id="pickBtn" type="button" style="padding:8px 14px">Load</button></div>`:''}
+    </div>
+    ${pickFrom==='play'||pickFrom==='pause'?'<p class="muted">Starting another level ends the game you are playing now.</p>':''}
+    <button class="go alt" id="pickCancel" type="button">Back <span class="sec">Esc</span></button>`);
+  $('pickCancel').onclick=closePicker;wireSave();$('lvlNum').focus();
+}
+function closePicker(){
+  if(state!=='pick')return;state=pickFrom;
+  if(pickFrom==='play'){hideOverlay();last=0;return}
+  showOverlay(pickHTML,pickFrom==='title');wireSave();
 }
 function slotSelect(){
   const slots=loadSlots(),ks=slotKeys(slots);
@@ -460,7 +486,8 @@ function askClear(){
 }
 function backFromClear(){
   if(resumeTo==='title'||resumeTo==='over'){state='title';titleCard()}
-  else showOverlay(`<h2>Paused</h2><p>Level ${level} · ${score} points</p><button class="go" id="goBtn" type="button">Resume</button>`);
+  else if(resumeTo==='play'){state='play';hideOverlay();last=0}
+  else{state='play';pause()}
 }
 function askLoad(n){
   const sl=loadSlots()[n];if(!sl)return;audio();
@@ -657,8 +684,8 @@ function breakCrate(x,y){
 }
 function explode(b){
   const i=bombs.indexOf(b);if(i<0)return;bombs.splice(i,1);
-  boom();shake=Math.min(0.35,shake+0.22);
-  addFlame(b.x,b.y,'c',6);burst(b.x,b.y,'#ffe27a',14,4,0.06);
+  boom();
+  addFlame(b.x,b.y,'c',6);burst(b.x,b.y,'#9fd3f5',3,2,0.04);
   for(const e of enemies)if(e.type==='giant'&&!e.dead&&Math.abs(b.x-e.x)<=1.05&&Math.abs(b.y-e.y)<=1.05){e.hp=1;e.inv=0;floatText(e.x,e.y-1.2,'Light from within!','#fff3b0')}
   const cells=[[b.x,b.y]];let broke=0;
   for(const [dx,dy] of DLIST){
@@ -883,11 +910,11 @@ function gameOver(){
   {const sv=loadSave();if(sv){Object.assign(sv,{lives:3,hp:MAX_HP,bombs:BASE_BOMBS,fire:BASE_FIRE,speed:3.6,score:0});writeSave(sv)}}
   const newBest=score>best;if(newBest){best=score;try{localStorage.setItem('fusewarren-best',best)}catch(e){}}
   hud();
-  showOverlay(`<h2>Out of fuses</h2>
+  showOverlay(`<h2 class="overh">Out of lives</h2>
     <p>You reached level ${level}.</p>
-    <div class="legend"><div><span class="sec">Score</span></div><div><span class="big">${score}</span></div>
+    <div class="legend scores"><div><span class="sec">Score</span></div><div><span class="big">${score}</span></div>
     <div><span class="sec">Best</span></div><div><span class="big">${best}</span>${newBest?' <span class="sec" style="color:var(--amber)">new</span>':''}</div></div>
-    ${saveBlock(loadSave(),true)}`);
+    ${startBlock(true)}`);
   wireSave();
 }
 let clearSwitched=false,clearLevel=0,levelStartScore=0,clearScore=0;
@@ -1209,6 +1236,8 @@ function update(dt){
   letterTick+=dt;const adv=letterTick>=2.5;if(adv)letterTick=0;
   for(const k in items){const it=items[k];it.life-=dt;if(adv&&it.type==='letter')it.letter=LETTERS[(LETTERS.indexOf(it.letter)+1)%5];
     if(it.life<=0){delete items[k];const [x,y]=k.split(',').map(Number);burst(x,y,it.type==='letter'?(LCOL[it.letter]||'#fff'):ITEMS[it.type].col,8,1.5,0.06);tone(260,0.08,'triangle',0.03,-120)}}
+  {const onBoard=new Set();for(const k in items)if(items[k].type==='letter')onBoard.add(items[k].letter);
+    for(const sp of $('extraRow').children)sp.classList.toggle('avail',onBoard.has(sp.textContent))}
   if(extraT>0){extraT-=dt;if(extraT<=0){extraT=0;floatText(player.x,player.y,'Extra game over','#c46bff');hud()}}
   for(const row of flameT)for(let i=0;i<COLS;i++)if(row[i]>0)row[i]-=dt;
   updateBombs(dt);updateMelts(dt);computeDanger();updatePlayer(dt);updateCaptives(dt);
@@ -1381,14 +1410,11 @@ function drawCloud(cx,cy,wob,tint){
   const fl=Math.sin(wob*2.2)*S*0.05,puffs=[[-0.24,0.06,0.2],[0.24,0.06,0.2],[-0.1,-0.1,0.24],[0.13,-0.08,0.22],[0,0.12,0.22]];
   ctx.save();ctx.translate(0,fl);
   ctx.fillStyle='rgba(0,0,0,.22)';ctx.beginPath();ctx.ellipse(cx,cy+S*0.4-fl,S*0.3,S*0.07,0,0,Math.PI*2);ctx.fill();
-  ctx.shadowColor='rgba(190,170,255,.7)';ctx.shadowBlur=S*0.15;
+  ctx.shadowColor='rgba(170,215,255,.7)';ctx.shadowBlur=S*0.15;
   for(const [ox,oy,r] of puffs){const k=1+0.06*Math.sin(wob*4+ox*9);
     const g=ctx.createRadialGradient(cx+ox*S-r*S*0.3,cy+oy*S-r*S*0.4,r*S*0.1,cx+ox*S,cy+oy*S,r*S*k);
-    g.addColorStop(0,'#ffffff');g.addColorStop(1,tint||'#c9b8ff');ctx.fillStyle=g;
+    g.addColorStop(0,'#ffffff');g.addColorStop(1,tint||'#cfe6fb');ctx.fillStyle=g;
     ctx.beginPath();ctx.arc(cx+ox*S,cy+oy*S,r*S*k,0,Math.PI*2);ctx.fill()}
-  ctx.shadowBlur=0;ctx.fillStyle='#4a3a7a';
-  for(const sd of[-1,1]){ctx.beginPath();ctx.arc(cx+sd*S*0.09,cy+S*0.02,S*0.035,0,Math.PI*2);ctx.fill()}
-  ctx.strokeStyle='#4a3a7a';ctx.lineWidth=Math.max(1,S*0.025);ctx.lineCap='round';ctx.beginPath();ctx.arc(cx,cy+S*0.07,S*0.045,0.2,Math.PI-0.2);ctx.stroke();
   ctx.restore();
 }
 let coinCache=null,coinKey='',coinFx=[];
@@ -1418,8 +1444,6 @@ function coinArt(R){const R0=R;
   g=g2.createLinearGradient(0,-R*0.5,0,R*0.26);g.addColorStop(0,'#f2d35a');g.addColorStop(1,'#d6a42a');one(0,0,g);
   g2.fillStyle='rgba(120,80,10,.55)';g2.font=`700 ${R*0.2}px "Chakra Petch", Arial, sans-serif`;g2.textAlign='center';g2.textBaseline='middle';g2.fillText('LIGHT',R*0.01,R*0.55);
   g2.fillStyle='rgba(255,244,190,.7)';g2.fillText('LIGHT',-R*0.005,R*0.535);
-  g=g2.createRadialGradient(-R*0.4,-R*0.45,0,-R*0.4,-R*0.45,R*0.9);g.addColorStop(0,'rgba(255,255,235,.35)');g.addColorStop(1,'rgba(255,255,235,0)');
-  g2.fillStyle=g;g2.beginPath();g2.arc(0,0,R,0,Math.PI*2);g2.fill();
   return c;
 }
 function drawCoins(){
@@ -1430,8 +1454,6 @@ function drawCoins(){
     ctx.save();ctx.translate(cx,cy);ctx.scale(sx,1);
     ctx.fillStyle='#8a5a06';ctx.beginPath();ctx.arc(R*0.05,R*0.07,R,0,Math.PI*2);ctx.fill();
     ctx.drawImage(coinCache,-R*1.15,-R*1.15,R*2.3,R*2.3);
-    const gl=((time*0.5+x*0.37+y*0.21)%3)/3;if(gl<0.25){const t=gl/0.25*2.6-1.3;ctx.beginPath();ctx.arc(0,0,R,0,Math.PI*2);ctx.clip();
-      ctx.fillStyle='rgba(255,255,240,.45)';ctx.beginPath();ctx.moveTo((t-0.18)*R,-R);ctx.lineTo((t+0.05)*R,-R);ctx.lineTo((t+0.05-0.6)*R,R);ctx.lineTo((t-0.18-0.6)*R,R);ctx.fill()}
     ctx.restore()}
   for(const f of coinFx){f.t+=1/60;const k=f.t/0.55;if(k>=1)continue;
     const cx=(f.x+.5)*S,cy=(f.y+.5)*S-k*S*0.9,sx=Math.cos(k*Math.PI*5);
@@ -1536,26 +1558,18 @@ function flameShape(x,y,k,th){
     if(dx)ctx.rect(dx>0?cx:X,cy-b,S/2,2*b);else ctx.rect(cx-b,dy>0?cy:Y,2*b,S/2)}
   ctx.fill();
 }
-const FLAME_LAYERS=[[1,'#b07a12'],[0.8,'#f2b630'],[0.58,'#ffe27a'],[0.36,'#fff4c4'],[0.16,'#ffffff']];
+const FLAME_LAYERS=[[1,'#3a78d8'],[0.72,'#6fb4f2'],[0.44,'#cdeaff']];
 function drawFlames(){
   const list=[];
   for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){const t=flameT[y][x];if(t<=0)continue;
     const p=1-t/FLAME_LIFE;
     const env=p<0.1?0.45+0.55*p/0.1:Math.max(0,1-Math.pow((p-0.1)/0.9,1.8));
-    const th=1.12*env;
+    const th=0.85*env;
     list.push([x,y,flameK[y][x],th,env,t>FLAME_LIFE-FLAME_HOT])}
   if(!list.length)return;
-  ctx.save();ctx.globalCompositeOperation='lighter';
-  for(const [x,y,,,env] of list){const cx=(x+.5)*S,cy=(y+.5)*S;
-    const g=ctx.createRadialGradient(cx,cy,0,cx,cy,S*0.95);g.addColorStop(0,`rgba(255,236,160,${0.45*env})`);g.addColorStop(1,'rgba(255,220,120,0)');
-    ctx.fillStyle=g;ctx.fillRect(cx-S,cy-S,S*2,S*2)}
-  ctx.restore();
   for(const [f,col] of FLAME_LAYERS){ctx.fillStyle=col;
-    for(const [x,y,k,th,,isHot] of list){ctx.globalAlpha=isHot?1:0.82;flameShape(x,y,k,th*f)}}
+    for(const [x,y,k,th,,isHot] of list){ctx.globalAlpha=isHot?0.5:0.38;flameShape(x,y,k,th*f)}}
   ctx.globalAlpha=1;
-  for(const [x,y,k,th,env] of list){if(env<0.3||Math.random()>0.35)continue;
-    const cx=(x+.5+(Math.random()-.5)*.6)*S,cy=(y+.5+(Math.random()-.5)*.6)*S;
-    ctx.fillStyle=Math.random()<.5?'#fff2a8':'#ffb347';ctx.fillRect(cx,cy,S*0.06,S*0.06)}
 }
 function eyes(cx,cy,sep,r,tx,ty,iris='#1b1226'){
   const a=Math.atan2(ty-cy,tx-cx),ox=Math.cos(a)*r*0.4,oy=Math.sin(a)*r*0.4;
@@ -1929,8 +1943,8 @@ function drawBalloons(){
     ctx.fillText(l1,bx+w/2,by+h*0.33);ctx.fillStyle='#b8322e';ctx.fillText(l2,bx+w/2,by+h*0.7);
     ctx.restore()}
 }
-function drawHeroBot([fx,fy],walk){
-  const R0=S*0.38,bob=Math.sin(time*3)*S*0.012,side=fx!==0?fx:1;
+function drawHeroBot([fx,fy],walk,lampSide){
+  const R0=S*0.38,bob=Math.sin(time*3)*S*0.012,side=fx!==0?fx:lampSide||1;
   ctx.fillStyle='rgba(0,0,0,.28)';ctx.beginPath();ctx.ellipse(0,R0*1.05,R0*0.85,R0*0.2,0,0,Math.PI*2);ctx.fill();
   ctx.save();ctx.translate(0,-bob);
   const ax=side*R0*0.18,fl=0.75+0.25*Math.sin(time*9);
@@ -1946,9 +1960,10 @@ function drawHeroBot([fx,fy],walk){
   else{const vx=fx*R0*0.2,vy=fy>0?R0*0.05:0,vw=fx?R0*1.1:R0*1.42;
     ctx.fillStyle='#232a3a';ctx.beginPath();ctx.roundRect(vx-vw/2,-R0*0.4+vy,vw,R0*0.56,R0*0.28);ctx.fill();
     const blink=((time+1.3)%3.4)<0.12;ctx.fillStyle='#5fe0c8';ctx.shadowColor='#5fe0c8';ctx.shadowBlur=S*0.08;
-    for(const sd of[-1,1]){if(fx&&sd===-fx&&!blink)continue;ctx.beginPath();
-      if(blink)ctx.fillRect(vx+sd*R0*0.27-R0*0.12,-R0*0.13+vy,R0*0.24,R0*0.05);
-      else ctx.arc(vx+sd*R0*0.27+fx*R0*0.05,-R0*0.12+vy,R0*0.13,0,Math.PI*2);ctx.fill()}
+    const sp=fx?R0*0.21:R0*0.27,er=fx?R0*0.115:R0*0.13;
+    for(const sd of[-1,1]){ctx.beginPath();
+      if(blink)ctx.fillRect(vx+sd*sp+fx*R0*0.05-er,-R0*0.13+vy,er*2,R0*0.05);
+      else ctx.arc(vx+sd*sp+fx*R0*0.05,-R0*0.12+vy,er,0,Math.PI*2);ctx.fill()}
     ctx.shadowBlur=0}
   const lx=side*R0*1.12,ly=R0*0.45;
   const g=ctx.createRadialGradient(lx,ly,0,lx,ly,R0*1.2);g.addColorStop(0,`rgba(255,226,140,${0.45*fl})`);g.addColorStop(1,'rgba(255,210,110,0)');
@@ -1967,7 +1982,8 @@ function drawPlayer(){
   ctx.save();ctx.translate(cx,cy);
   if(p.alive&&p.hurtT>0&&Math.sin(time*40)>0)ctx.globalAlpha=0.3;
   if(!p.alive){const k=Math.max(0,1-p.deathT/1.1);ctx.rotate(p.deathT*8);ctx.scale(k,k)}
-  drawHeroBot(DIRS[p.face],p.moving?Math.sin(p.prog*Math.PI*2):0);
+  const f=DIRS[p.face];if(f[0])p.side=f[0];
+  drawHeroBot(p.moving?f:[0,1],p.moving?Math.sin(p.prog*Math.PI*2):0,p.side);
   ctx.restore();
   if(p.alive&&p.shield>0){
     const t=p.shield;let col,on=true;
@@ -1986,7 +2002,10 @@ function drawPlayer(){
 function drawParticles(){
   for(const p of particles){const a=Math.max(0,p.life/p.max);
     if(p.text){ctx.globalAlpha=Math.min(1,a*1.5);ctx.fillStyle=p.c;ctx.font=`${Math.max(10,S*0.42)}px Silkscreen, monospace`;
-      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#120d18';ctx.fillText(p.text,p.x*S+1,p.y*S+2);ctx.fillStyle=p.c;ctx.fillText(p.text,p.x*S,p.y*S)}
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      // keep floating text inside the visible board (the outer wall ring is cropped)
+      const hw=ctx.measureText(p.text).width/2+S*0.1,tx=Math.max(S+hw,Math.min((COLS-1)*S-hw,p.x*S)),ty=Math.max(S*1.35,Math.min((ROWS-1.35)*S,p.y*S));
+      ctx.fillStyle='#120d18';ctx.fillText(p.text,tx+1,ty+2);ctx.fillStyle=p.c;ctx.fillText(p.text,tx,ty)}
     else if(p.smoke){if(p.delay>0)continue;const rr2=(p.r+(1-a)*0.28)*S;ctx.globalAlpha=a*0.45;ctx.fillStyle=p.c;
       ctx.beginPath();ctx.arc(p.x*S,p.y*S,rr2,0,Math.PI*2);ctx.fill()}
     else{ctx.globalAlpha=a;ctx.fillStyle=p.c;ctx.fillRect(p.x*S-p.r*S,p.y*S-p.r*S,p.r*2*S,p.r*2*S)}}
@@ -1994,24 +2013,20 @@ function drawParticles(){
 }
 function fitFont(t,px,fam,maxW){ctx.font=`${px}px ${fam}`;const w=ctx.measureText(t).width;if(w>maxW)ctx.font=`${Math.max(8,px*maxW/w)}px ${fam}`}
 function bannerText(big,small,a,col,extra){
-  if(extra){const W=COLS*S,H=ROWS*S;ctx.globalAlpha=a;
-    ctx.fillStyle='rgba(18,13,24,.82)';ctx.fillRect(0,H/2-S*1.8,W,S*3.8);
-    ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.font=`${S*1.1}px Bungee, Impact, sans-serif`;ctx.fillStyle='#7a3b12';ctx.fillText(big,W/2,H/2-S*0.85+3);
-    ctx.fillStyle='#ffb347';ctx.fillText(big,W/2,H/2-S*0.85);
-    fitFont(small,Math.max(11,S*0.5),'Silkscreen, monospace',W*0.94);ctx.fillStyle=col;ctx.fillText(small,W/2,H/2+S*0.3);
-    fitFont(extra,Math.max(10,S*0.4),'Silkscreen, monospace',W*0.94);ctx.fillStyle='#f4ead8';ctx.fillText(extra,W/2,H/2+S*1.1);
-    ctx.globalAlpha=1;return}
-  const W=COLS*S,H=ROWS*S;ctx.globalAlpha=a;
-  ctx.fillStyle='rgba(18,13,24,.7)';ctx.fillRect(0,H/2-S*1.3,W,S*2.6);
+  const W=COLS*S,H=ROWS*S,bigF=`${S*0.72}px Bungee, Impact, sans-serif`;
+  const lines=extra?[[big,bigF,-0.62],[small,null,0.22,Math.max(11,S*0.44),col],[extra,null,0.88,Math.max(10,S*0.36),'#f4ead8']]
+    :[[big,bigF,-0.24],[small,null,0.5,Math.max(10,S*0.38),'#f4ead8']];
+  let bw=0;for(const l of lines){if(l[1])ctx.font=l[1];else{fitFont(l[0],l[3],'Silkscreen, monospace',W*0.9);l[1]=ctx.font}bw=Math.max(bw,ctx.measureText(l[0]).width)}
+  bw=Math.min(W*0.96,bw+S*2.4);const top=extra?H/2-S*1.62:H/2-S*1.25,bh=extra?S*3.55:S*2.55;
+  ctx.globalAlpha=a;ctx.fillStyle=extra?'rgba(18,13,24,.82)':'rgba(18,13,24,.7)';rr(W/2-bw/2,top,bw,bh,S*0.25);ctx.fill();
   ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.font=`${S*1.1}px Bungee, Impact, sans-serif`;ctx.fillStyle='#7a3b12';ctx.fillText(big,W/2,H/2-S*0.25+3);
-  ctx.fillStyle='#ffb347';ctx.fillText(big,W/2,H/2-S*0.25);
-  fitFont(small,Math.max(10,S*0.42),'Silkscreen, monospace',W*0.94);ctx.fillStyle='#f4ead8';ctx.fillText(small,W/2,H/2+S*0.75);
+  for(const [t,f,dy,,c] of lines){ctx.font=f;const y=H/2+S*dy;
+    if(f===bigF){ctx.fillStyle='#7a3b12';ctx.fillText(t,W/2,y+3);ctx.fillStyle='#ffb347'}else ctx.fillStyle=c;
+    ctx.fillText(t,W/2,y)}
   ctx.globalAlpha=1;
 }
 function draw(){
-  ctx.setTransform(DPR,0,0,DPR,0,0);ctx.clearRect(0,0,COLS*S,ROWS*S);
+  ctx.setTransform(DPR,0,0,DPR,-S*DPR,-S*DPR);ctx.clearRect(0,0,COLS*S,ROWS*S);
   if(!grid)return;
   if(shake>0&&!reduce)ctx.translate((Math.random()-.5)*shake*S*0.5,(Math.random()-.5)*shake*S*0.5);
   drawTiles();drawCoins();
@@ -2029,7 +2044,7 @@ function draw(){
     else drawEnemy(e)}
   drawShots();
   drawPlayer();drawParticles();drawBalloons();
-  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.setTransform(DPR,0,0,DPR,-S*DPR,-S*DPR);
   if(state==='play'&&banner>0&&!introOpen){const a=Math.min(1,banner/0.5);
     if(isBoss()){const k=bossK(),pl=k>1?'S':'';
       bannerText('BOSS LEVEL '+level,(k===1?'DEATH':k===2?'DEATH AND ITS SHADOW':'DEATH AND '+(k-1)+' SHADOWS'),a,'#ff5a1c','Touch it without a shield and you die. Shielded, light a lamp inside it!')}
@@ -2038,7 +2053,7 @@ function draw(){
     else if(level>1&&(level-1)%5===0){const T=theme();bannerText('LEVEL '+level,'NEW WORLD: '+T.name.toUpperCase(),a,T.acc,T.desc)}
     else bannerText('LEVEL '+level,enemies.length+' monsters to defeat \u00b7 '+theme().name,a)}
   if(state==='play'&&isBoss()&&bossMax>0&&bossHPNow()>0&&banner<=0){
-    const W=COLS*S,bw=Math.min(W*0.5,S*7),bx=(W-bw)/2,by=S*0.28,bh=S*0.28,f=bossHPNow()/bossMax;
+    const W=COLS*S,bw=Math.min(W*0.5,S*7),bx=(W-bw)/2,by=S*1.28,bh=S*0.28,f=bossHPNow()/bossMax;
     ctx.fillStyle='rgba(10,4,6,.85)';rr(bx-S*1.3,by-S*0.12,bw+S*1.42,bh+S*0.24,S*0.12);ctx.fill();
     ctx.font=`${Math.max(10,S*0.3)}px Silkscreen, monospace`;ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillStyle='#ff8a5c';ctx.fillText('BOSS',bx-S*1.15,by+bh/2);
     ctx.fillStyle='#3a1416';rr(bx,by,bw,bh,bh/2);ctx.fill();
@@ -2047,9 +2062,9 @@ function draw(){
   if(state==='play'&&!enemies.length&&endWait>0){
     const n=Math.max(1,Math.ceil(END_TIME-endWait)),W=COLS*S,txt='ALL CLEAR · NEXT LEVEL IN '+n;
     ctx.font=`${Math.max(11,S*0.42)}px Silkscreen, monospace`;const tw=ctx.measureText(txt).width+S*0.8;
-    ctx.fillStyle='rgba(18,13,24,.85)';rr(W/2-tw/2,S*0.15,tw,S*0.7,S*0.2);ctx.fill();
+    ctx.fillStyle='rgba(18,13,24,.85)';rr(W/2-tw/2,S*1.15,tw,S*0.7,S*0.2);ctx.fill();
     ctx.strokeStyle=n<=2&&Math.sin(time*12)>0?'#ff5a5a':'#ffb347';ctx.lineWidth=2;ctx.stroke();
-    ctx.fillStyle='#ffd36b';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,W/2,S*0.5)}
+    ctx.fillStyle='#ffd36b';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,W/2,S*1.5)}
   if(state==='play'&&player&&!player.alive&&player.deathT>0.6){
     const d=player.deathT,W=COLS*S,H=ROWS*S;
     ctx.fillStyle=`rgba(10,6,14,${Math.min(0.6,(d-0.6)*0.5)})`;ctx.fillRect(0,0,W,H);
@@ -2057,11 +2072,11 @@ function draw(){
     if(a>0)bannerText(left>0?(playerName?playerName.toUpperCase()+' HAS FALLEN':'THE PILGRIM HAS FALLEN'):'GAME OVER',left>0?(left===1?'1 life left':left+' lives left')+' · '+'♥'.repeat(left):'No lives left',a)}
   if(savedFlash>0&&state==='play'&&player.alive){const W=COLS*S,H=ROWS*S,txt=flashMsg||'✓ PROGRESS SAVED';
     ctx.globalAlpha=Math.min(1,savedFlash);ctx.font=`${Math.max(10,S*0.36)}px Silkscreen, monospace`;
-    const tw=ctx.measureText(txt).width+S*0.6;ctx.fillStyle='rgba(18,13,24,.85)';rr(W-tw-S*0.2,H-S*0.85,tw,S*0.6,S*0.18);ctx.fill();
-    ctx.fillStyle='#5fe0c8';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,W-tw/2-S*0.2,H-S*0.55);ctx.globalAlpha=1}
+    const tw=ctx.measureText(txt).width+S*0.6;ctx.fillStyle='rgba(18,13,24,.85)';rr(W-S-tw-S*0.2,H-S*1.85,tw,S*0.6,S*0.18);ctx.fill();
+    ctx.fillStyle='#5fe0c8';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,W-S-tw/2-S*0.2,H-S*1.55);ctx.globalAlpha=1}
   if(state==='play'&&extraBanner>0&&banner<=0){const a=Math.min(1,extraBanner/0.5),W=COLS*S,t1='CLOUDS OF HOPE',t2='Blast the clouds, grab their letters';
     ctx.save();ctx.globalAlpha=a;ctx.font=`${S*0.5}px Bungee, Impact, sans-serif`;const w1=ctx.measureText(t1).width;ctx.font=`${Math.max(9,S*0.28)}px Silkscreen, monospace`;const w2=ctx.measureText(t2).width;
-    const bw=Math.max(w1,w2)+S*0.9,bh=S*1.2,bx=W/2-bw/2,by=S*0.12;
+    const bw=Math.max(w1,w2)+S*0.9,bh=S*1.2,bx=W/2-bw/2,by=S*1.2;
     ctx.fillStyle='rgba(18,13,26,.88)';rr(bx,by,bw,bh,S*0.3);ctx.fill();ctx.strokeStyle='#c46bff';ctx.lineWidth=Math.max(1.5,S*0.05);ctx.stroke();
     ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`${S*0.5}px Bungee, Impact, sans-serif`;ctx.fillStyle='#e6c8ff';ctx.fillText(t1,W/2,by+bh*0.36);
     ctx.font=`${Math.max(9,S*0.28)}px Silkscreen, monospace`;ctx.fillStyle='#f4ead8';ctx.fillText(t2,W/2,by+bh*0.74);ctx.restore()}
@@ -2107,28 +2122,43 @@ function hud(){
   [...$('extraRow').children].forEach(sp=>sp.classList.toggle('got',letters.has(sp.textContent)));
 }
 
-function showOverlay(html){$('card').innerHTML=html;$('overlay').hidden=false;const b=$('goBtn');if(b){b.onclick=primary;b.focus()}}
+function showOverlay(html,wide){$('card').className='card';$('card').innerHTML=html;$('overlay').classList.toggle('wide',!!wide);$('overlay').hidden=false;const b=$('goBtn');if(b){b.onclick=primary;b.focus()}}
 function hideOverlay(){$('overlay').hidden=true}
 function titleCard(){
-  const sw=(c)=>`<span class="sw" style="background:${c}"></span>`;
-  showOverlay(`<h1>Mission <span class="im">Im</span>possible</h1>
-    ${playerName?`<p><b>Welcome back, ${esc(playerName)}!</b></p>`:''}
-    <p>Guide the Pilgrim, a little robot on a mission, through dark places held by demons. Press <b>Space</b> to set down a lamp: a moment later it bursts into light and drives out every demon in its path. Defeat all the demons to finish the level.</p>
-    <p class="muted">You can have <b>5 lamps burning at the same time</b> (Extra lamp lets you place more), and their light reaches <b>2 squares</b> (Brighter lamp makes it longer). You have <b>6 hearts</b> and lose them half by half. Your own light burns too, so step aside after setting a lamp. Collect every coin to call the <b>Clouds of Hope</b> and spell <b>G-R-A-C-E</b> for an extra life.</p>
-    <p class="muted">From level 11, free the <b>captives</b> locked in the bottom corners: they walk to the top corner, climb up and help you from there. New demons are introduced as you meet them; open the <b>Field guide</b> any time to read about them.</p>
-    <span class="sec">Pickups</span>
-    <div class="legend">
-      ${Object.values(ITEMS).map(i=>`<div>${sw(i.col)}${i.label}</div>`).join('')}
-    </div>
-    <p class="muted">Arrow keys or WASD to move, Space or X to set down a lamp, P to pause, M for music, F for full screen. Lamps aren't solid, so you and the demons can walk over them.</p>
-    ${saveBlock(loadSave(),false)}`);
+  const k=t=>`<kbd>${t}</kbd>`;
+  showOverlay(`<header class="thead"><h1>Mission <span class="im">Im</span>possible</h1>
+      ${playerName?`<p class="welcome">Welcome, ${esc(playerName)}!</p>`:''}</header>
+    <p class="lead">Guide the Pilgrim through dark places held by demons. Set down lamps whose light drives the demons out, and defeat them all to finish the level.</p>
+    <div class="tgrid">
+      <section><span class="sec">How to play</span><ul class="tlist">
+        <li><b>5 lamps</b> can burn at the same time, and their light reaches <b>2 squares</b>.</li>
+        <li>Your own light burns too, so <b>step aside</b> after setting a lamp. Lamps aren't solid: you and the demons can walk over them.</li>
+        <li>You have <b>6 hearts</b> and lose them half by half.</li>
+        <li>Collect every coin to call the <b>Clouds of Hope</b>, and spell <b>G-R-A-C-E</b> for an extra life.</li>
+        <li>New demons are introduced as you meet them. Open the <b>Field guide</b> any time to read about them.</li>
+      </ul></section>
+      <section><span class="sec">Pickups</span><div class="legend">
+        ${Object.entries(ITEMS).map(([t,i])=>`<div><img class="itic" src="${itemIcon(t)}" alt="">${i.label}</div>`).join('')}
+      </div></section>
+      <section><span class="sec">Controls</span><dl class="keys">
+        <dt>${k('Enter')}</dt><dd>Start level ${lastPick()}</dd>
+        <dt>${k('←')}${k('↑')}${k('↓')}${k('→')} or ${k('WASD')}</dt><dd>Move</dd>
+        <dt>${k('Space')} or ${k('X')}</dt><dd>Set down a lamp</dd>
+        <dt class="kgap">${k('L')}</dt><dd class="kgap">Choose a level</dd>
+        <dt>${k('P')}</dt><dd>Pause</dd>
+        <dt>${k('M')}</dt><dd>Music on/off</dd>
+        <dt>${k('F')}</dt><dd>Full screen</dd>
+      </dl>
+      <p class="knote">Nothing is saved automatically. Press <b>Save level</b> while playing to keep the current board, hearts and power-ups; your saves appear under <b>Saved levels</b> on the right.</p></section>
+    </div>`,true);
   wireSave();
 }
 function pause(){if(state!=='play')return;state='pause';held.length=0;
-  showOverlay(`<h2>Paused</h2><p>Level ${level} · ${score} points</p><button class="go" id="goBtn" type="button">Resume</button>`)}
+  showOverlay(`<h2>Paused</h2><p>Level ${level} · ${score} points</p><button class="go" id="goBtn" type="button">Resume</button><p class="muted">Click anywhere or press P to resume</p>`);$('card').classList.add('pausecard')}
+$('overlay').addEventListener('click',()=>{if(state==='pause'&&$('card').classList.contains('pausecard'))primary()});
 function primary(){
   audio();
-  if(state==='title'||state==='over'){const n=pickedLevel();if(!playerName){askName(()=>startAt(n));return}startAt(n);return}
+  if(state==='title'||state==='over'||state==='pick'){const n=pickedLevel();if(!playerName){askName(()=>startAt(n));return}startAt(n);return}
   else if(state==='pause'){state='play';hideOverlay();last=0}
 }
 
@@ -2139,11 +2169,13 @@ addEventListener('keydown',e=>{
   const d=KEYMAP[e.code];
   if(d){e.preventDefault();if(!held.includes(d))held.push(d);return}
   if(e.code==='Space'||e.code==='KeyX'||e.code==='Enter'){
+    const fb=document.activeElement;if(state!=='play'&&e.code!=='KeyX'&&fb&&fb.tagName==='BUTTON'&&fb.id!=='goBtn')return;
     e.preventDefault();if(e.code!=='Enter'&&state==='play')bombHeld=true;if(e.repeat)return;audio();
     if(state==='play'&&e.code!=='Enter'){if(!player.moving||player.prog<0.5)placeBomb();else pendingBomb=true}
     else if(state!=='play'&&state!=='clear')primary();
     return}
-  if(e.code==='KeyP'||e.code==='Escape'){e.preventDefault();if(state==='play')pause();else if(state==='pause')primary()}
+  if(e.code==='KeyP'||e.code==='Escape'){e.preventDefault();if(state==='pick')closePicker();else if(state==='play')pause();else if(state==='pause')primary()}
+  if(e.code==='KeyL'&&!e.repeat){e.preventDefault();if(state==='pick')closePicker();else levelPicker()}
 });
 let bombHeld=false,pendingBomb=false;
 addEventListener('keyup',e=>{if(e.code==='Space'||e.code==='KeyX')bombHeld=false;const d=KEYMAP[e.code];if(d){const i=held.indexOf(d);if(i>=0)held.splice(i,1)}});
@@ -2151,7 +2183,7 @@ addEventListener('blur',()=>{held.length=0;bombHeld=false;pause()});
 document.querySelectorAll('.side button').forEach(b=>b.addEventListener('click',()=>b.blur()));
 addEventListener('keyup',e=>{if(e.code==='Space')e.preventDefault()});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)pause()});
-$('btnGuide').onclick=()=>{$('btnGuide').blur();openGuide()};
+$('btnGuide').onclick=()=>{$('btnGuide').blur();if(!$('overlay').hidden&&$('card').querySelector('.fgh'))backFromClear();else openGuide()};
 $('pName').onclick=()=>{$('pName').blur();askName()};
 updateName();
 $('btnClearSaves').onclick=()=>{$('btnClearSaves').blur();askClear()};
