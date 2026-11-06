@@ -123,6 +123,11 @@ const bossK=()=>Math.min(4,Math.floor(level/10));
 const lionHP=()=>Math.min(6,3+Math.floor((level-10)/10));
 // Lamp hits each Death takes; some levels set their own (level 50: four Deaths, so fewer each).
 const GIANT_HP_LEVEL={50:6};
+// Levels whose Deaths sit at set map rows (top to bottom); half rows are fine since Deaths never move.
+// Level 50: evenly spaced (8/3 rows apart), keeping the top and bottom rows free to walk.
+const GIANT_ROWS={50:[2,2+8/3,2+16/3,10]};
+function placeGiants(){const rows=GIANT_ROWS[level];if(!rows)return;
+  enemies.filter(e=>e.type==='giant').sort((a,b)=>a.y-b.y).forEach((e,i)=>{if(rows[i]!==undefined)e.y=e.ty=rows[i]+1})}
 const giantHP=()=>GIANT_HP_LEVEL[level]||Math.min(16,10+2*(bossK()-1));
 const idolHP=()=>Math.min(11,5+2*(bossK()-1));
 let spawnX=1,spawnY=1,bossMax=0;
@@ -286,6 +291,7 @@ function applyMoment(M){const p=player;
 function startLevel(L,M){
   trumpetWave=null;bombs=[];particles=[];shots=[];melts=[];coinFx=[];levelStartScore=score;
   if(L&&L.g)applyLayout(L);else{COLS=17;ROWS=15;gen()}
+  placeGiants();
   const sx=L&&L.g&&L.px||spawnX,sy=L&&L.g&&L.py||spawnY;calcBossMax();
   Object.assign(player,{x:sx,y:sy,tx:sx,ty:sy,prog:0,moving:false,alive:true,deathT:0,face:'down',fastT:0,tpLock:false,stay:[]});
   curLayout=L&&L.g?L:layoutOf();
@@ -909,10 +915,12 @@ function greedBites(dt){
 function damageEnemy(e){
   e.hp--;e.inv=0.7;
   if(e.hp<=0){e.dying=DIE_TIME;e.moving=false;e.windup=0;e.burst=0;const T=ETYPES[e.type];sfx.kill();const [rx,ry]=rpos(e);
-    if(extraT>0){score+=300;burst(rx,ry,'#e6dcff',18,3,0.1);const [lx,ly]=occ(e);items[key(lx,ly)]={type:'letter',letter:nextDropLetter(),born:time,life:20};tone(880,0.1,'triangle',0.05)}
+    if(extraT>0){score+=300;burst(rx,ry,'#e6dcff',18,3,0.1);let [lx,ly]=occ(e);if(items[key(lx,ly)]){const sp=nearFree(lx,ly,1)[0];if(sp)[lx,ly]=sp}// never cover a letter already there
+      if(!items[key(lx,ly)])items[key(lx,ly)]={type:'letter',letter:nextDropLetter(),born:time,life:20};tone(880,0.1,'triangle',0.05)}
     else{score+=T.pts;burst(rx,ry,T.col,16,3.5,0.1);floatText(rx,ry,'+'+T.pts);onDeath(e)}}
   else sfx.hurt();
 }
+const STRAIGHT_CLOUD_LEVELS=new Set([46]);
 function choose(e){
   const T=extraT>0?{...ETYPES.gloop,ghost:ETYPES[e.type].ghost}:ETYPES[e.type],here=danger[e.y][e.x];
   e.leanOn=(e.dx||e.dy)&&enemyAt(e.x+e.dx,e.y+e.dy,e);if(e.leanOn){e.ldx=e.dx;e.ldy=e.dy}// press up against the one ahead
@@ -957,6 +965,9 @@ function choose(e){
       const nk=(e.x+o[0])+','+(e.y+o[1]),recent=e.trail.slice(-8).includes(nk);
       const sc=(looping?d*0.3:d)+(looping?(straight?-3:0):(straight?0.7:0))+(recent?2:0)+Math.random()*0.6;if(sc<bs){bs=sc;best=o}}
     return best}
+  // Level 46: clouds keep going straight and only turn when blocked; they go back only at a dead end
+  if(extraT>0&&STRAIGHT_CLOUD_LEVELS.has(level)){const f=opts.find(o=>o[0]===e.dx&&o[1]===e.dy);if(f)return f;
+    const side=opts.filter(o=>o[0]*e.dx+o[1]*e.dy===0);return side.length?side[rand(side.length)]:opts[0]}
   if(extraT>0&&!here){const back=opts.find(o=>o[0]===-e.dx&&o[1]===-e.dy),f=opts.find(o=>o[0]===e.dx&&o[1]===e.dy),r=Math.random();
     if(back&&r<0.18)return back;if(f&&r<0.55)return f;const other=opts.filter(o=>o!==back);return (other.length?other:opts)[rand((other.length?other:opts).length)]}
   if(e.followAim&&extraT<=0&&!here){e.followAim=false;const f=opts.find(o=>o[0]===e.dx&&o[1]===e.dy);if(f)return f}
@@ -1129,7 +1140,7 @@ function updateShots(dt){
   }
   shots=shots.filter(b=>!b.dead);
 }
-// A spinning, spiky fire star: red points, orange middle, yellow core, with a short glowing trail.
+// A spinning, spiky fire star: red points, orange middle, yellow core, with a short trail (no blur glow: too costly).
 function starPath(cx,cy,R,rot,n,inner){ctx.beginPath();
   for(let i=0;i<n*2;i++){const a=rot+i*Math.PI/n,rr=i%2?R*inner:R*(i%4===0?1:0.86);i?ctx.lineTo(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr):ctx.moveTo(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr)}ctx.closePath()}
 function drawFireStar(b,cx,cy,R){
@@ -1137,8 +1148,7 @@ function drawFireStar(b,cx,cy,R){
   ctx.globalCompositeOperation='lighter';
   for(let i=3;i>=1;i--){ctx.fillStyle=`rgba(255,${80+i*30},20,${0.14*(4-i)})`;ctx.beginPath();ctx.arc(cx-b.dx*S*0.16*i,cy-b.dy*S*0.16*i,R*(0.55-i*0.1),0,Math.PI*2);ctx.fill()}
   ctx.globalCompositeOperation='source-over';
-  ctx.shadowColor='rgba(255,90,20,.8)';ctx.shadowBlur=S*0.18;
-  starPath(cx,cy,R,rot,5,0.42);ctx.fillStyle='#e8301c';ctx.fill();ctx.shadowBlur=0;
+  starPath(cx,cy,R,rot,5,0.42);ctx.fillStyle='#e8301c';ctx.fill();
   ctx.lineWidth=Math.max(1,S*0.02);ctx.strokeStyle='rgba(110,12,4,.85)';ctx.stroke();
   starPath(cx,cy,R*0.68,rot+0.3,5,0.5);ctx.fillStyle='#ff8a1c';ctx.fill();
   starPath(cx,cy,R*0.38,rot+0.6,5,0.55);ctx.fillStyle='#ffe45a';ctx.fill();
@@ -1658,14 +1668,16 @@ function drawEnemy(e){
   if(e.type==='giant'){
     ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.ellipse(cx,cy+S*0.95,S*1.1,S*0.22,0,0,Math.PI*2);ctx.fill();
     const bob=Math.sin(e.wob*2.5)*S*0.05;ctx.save();ctx.translate(cx,cy+bob);ctx.scale(2.15,2.15);ctx.translate(-cx,-cy);
-    drawEnemy({...e,type:'lion',hp:0,moving:false,x:e.x,y:e.y});ctx.restore();
+    drawEnemy({...e,type:'lion',hp:0,moving:false,x:e.x,y:e.y,noGlow:true});ctx.restore();
     if(!e.sees&&e.windup<=0&&e.burst<=0){ctx.globalAlpha=0.8+0.2*Math.sin(time*3);ctx.font=`${S*0.7}px Bungee, Impact, sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillStyle='rgba(18,3,2,.85)';ctx.beginPath();ctx.arc(cx+S*1.05,cy-S*1.15,S*0.38,0,Math.PI*2);ctx.fill();
       ctx.fillStyle='#fff3b0';ctx.fillText('?',cx+S*1.05,cy-S*1.1);ctx.globalAlpha=1}
     return}
   if(e.type==='idol'){drawIdol(e,cx,cy,flash);return}
   if(extraT>0){
-    const ending=extraT<4&&Math.sin(time*16)>0;drawCloud(cx,cy,e.wob,ending?ETYPES[e.type].col:null);return}
+    // last 4 seconds: the cloud fades in and out, a little faster as time runs out
+    const u=4-extraT,a=extraT<4?0.3+0.7*(0.5+0.5*Math.cos(u*5+u*u*0.75)):1;
+    ctx.save();ctx.globalAlpha*=a;drawCloud(cx,cy,e.wob,null);ctx.restore();return}
   if(e.type==='lies'){
     const a=e.vanish>0.5?(e.vanish-0.5)*2:e.vanish>0?1-e.vanish*2:1;
     ctx.save();ctx.globalAlpha=Math.max(0.04,a);
@@ -1921,7 +1933,7 @@ function drawEnemy(e){
     ctx.restore();
   }else if(e.type==='lion'){
     const wind=e.windup>0||e.burst>0,R0=S*(wind?0.7:0.64);
-    ctx.save();ctx.shadowColor='rgba(255,80,10,.9)';ctx.shadowBlur=S*0.3;
+    ctx.save();if(!e.noGlow){ctx.shadowColor='rgba(255,80,10,.9)';ctx.shadowBlur=S*0.3}// the Deaths draw without the glow (it was the main cost on level 50)
     for(const [k,c] of [[1,'#a8160a'],[0.84,'#ff4a12'],[0.66,'#ffb52a']]){ctx.fillStyle=flash?'#fff':c;ctx.beginPath();
       for(let i=0;i<20;i++){const a=i/20*Math.PI*2-Math.PI/2,f=Math.sin(time*(wind?26:11)+i*2.3+e.wob)*0.08;
         const rr2=(i%2?R0*0.72:R0*(1+f))*k;const px2=cx+Math.cos(a)*rr2,py2=cy+Math.sin(a)*rr2*(i%2?1:1.08)-(i%2?0:S*0.04);i?ctx.lineTo(px2,py2):ctx.moveTo(px2,py2)}
