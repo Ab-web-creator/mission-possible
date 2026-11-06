@@ -218,7 +218,7 @@ function placeCaptives(){
 function genMap(rows){
   grid=[];for(let y=0;y<ROWS;y++){const row=[];for(let x=0;x<COLS;x++){const ch=(y>0&&y<ROWS-1&&x>0&&x<COLS-1)?rows[y-1][x-1]:'#';row.push(ch==='#'?WALL:ch==='c'?CRATE:EMPTY)}grid.push(row)}
   enemies=[];coins=new Set();tunnels=[];
-  rows.forEach((r,y)=>[...r].forEach((ch,x)=>{if(ch==='M'||ch==='D')enemies.push(makeEnemy('doubt',x+1,y+1));if(ch==='A')enemies.push(makeEnemy('skitter',x+1,y+1));if(ch==='N')enemies.push(makeEnemy('spitter',x+1,y+1));if(ch==='P'){spawnX=x+1;spawnY=y+1}if(ch==='T')tunnels.push([x+1,y+1]);if(ch==='L')enemies.push(makeEnemy('lies',x+1,y+1));if(ch==='Z')enemies.push(makeEnemy('accuse',x+1,y+1));if(ch==='H')enemies.push(makeEnemy('brute',x+1,y+1));if(ch==='W')enemies.push(makeEnemy('suspect',x+1,y+1));if(ch==='K')enemies.push(makeEnemy('murder',x+1,y+1));if(ch==='Y')enemies.push(makeEnemy(LEVEL23_NEW,x+1,y+1));if(ch==='X'){const g=makeEnemy('giant',x+1,y+1);g.cd=2.2+enemies.filter(o=>o.type==='giant').length*1.3;enemies.push(g)}if(ch==='G')enemies.push(makeEnemy('greed',x+1,y+1));if(ch==='$')coins.add(key(x+1,y+1))}));
+  rows.forEach((r,y)=>[...r].forEach((ch,x)=>{if(ch==='M'||ch==='D')enemies.push(makeEnemy('doubt',x+1,y+1));if(ch==='A')enemies.push(makeEnemy('skitter',x+1,y+1));if(ch==='N')enemies.push(makeEnemy('spitter',x+1,y+1));if(ch==='P'){spawnX=x+1;spawnY=y+1}if(ch==='T')tunnels.push([x+1,y+1]);if(ch==='L')enemies.push(makeEnemy('lies',x+1,y+1));if(ch==='Z')enemies.push(makeEnemy('accuse',x+1,y+1));if(ch==='H')enemies.push(makeEnemy('brute',x+1,y+1));if(ch==='W')enemies.push(makeEnemy('suspect',x+1,y+1));if(ch==='K')enemies.push(makeEnemy('murder',x+1,y+1));if(ch==='Y')enemies.push(makeEnemy(LEVEL23_NEW,x+1,y+1));if(ch==='X'){const g=makeEnemy('giant',x+1,y+1);g.cd=2.2+enemies.filter(o=>o.type==='giant').length*1.3;enemies.push(g)}if(ch==='G')enemies.push(makeEnemy('greed',x+1,y+1));if(ch==='O')enemies.push(makeEnemy('gossip',x+1,y+1));if(ch==='E')enemies.push(makeEnemy('temper',x+1,y+1));if(ch==='V')enemies.push(makeEnemy('critic',x+1,y+1));if(ch==='$')coins.add(key(x+1,y+1))}));
 }
 function gen(){
   spawnX=1;spawnY=1;
@@ -984,6 +984,7 @@ function damageEnemy(e){
 }
 function choose(e){
   const T=extraT>0?{...ETYPES.gloop,ghost:ETYPES[e.type].ghost}:ETYPES[e.type],here=danger[e.y][e.x];
+  e.leanOn=(e.dx||e.dy)&&enemyAt(e.x+e.dx,e.y+e.dy,e);if(e.leanOn){e.ldx=e.dx;e.ldy=e.dy}// press up against the one ahead
   let opts=DLIST.filter(([dx,dy])=>{const nx=e.x+dx,ny=e.y+dy;
     if(blocked(nx,ny,T.ghost)||flameT[ny][nx]>0||enemyAt(nx,ny,e))return false;
     if(tunnelAt(nx,ny)>=0&&player.alive&&!player.moving&&player.x===nx&&player.y===ny)return false;
@@ -1027,6 +1028,27 @@ function choose(e){
     return best}
   if(extraT>0&&!here){const back=opts.find(o=>o[0]===-e.dx&&o[1]===-e.dy),f=opts.find(o=>o[0]===e.dx&&o[1]===e.dy),r=Math.random();
     if(back&&r<0.18)return back;if(f&&r<0.55)return f;const other=opts.filter(o=>o!==back);return (other.length?other:opts)[rand((other.length?other:opts).length)]}
+  if(e.followAim&&extraT<=0&&!here){e.followAim=false;const f=opts.find(o=>o[0]===e.dx&&o[1]===e.dy);if(f)return f}
+  if(e.type==='critic'&&extraT<=0&&!here){
+    const m=e.mem||(e.mem={});m[e.x+','+e.y]=time;
+    // it saw you a moment ago: go to where you were, by the shortest way
+    if(e.lastSeen&&time-e.seenT<5){const [lx,ly]=e.lastSeen,dist=bfs(lx,ly,false),dh=dist[e.x+e.y*COLS];
+      if(dh>0&&dh!==Infinity){let best=null,bd=dh;for(const o of opts){const d=dist[(e.x+o[0])+(e.y+o[1])*COLS];if(d<bd){bd=d;best=o}}if(best)return best}
+      e.lastSeen=null}
+    // lost you: explore squares seen longest ago (or never), drawn to tunnels, keeping away from other Criticisms
+    let best=null,bs=Infinity;
+    for(const o of opts){const nx=e.x+o[0],ny=e.y+o[1];let sc=(m[nx+','+ny]??-60)+Math.random()*1.5;
+      if(tunnelAt(nx,ny)>=0&&!e.tpLock)sc-=8;if(o[0]===-e.dx&&o[1]===-e.dy)sc+=1;
+      for(const q of enemies)if(q!==e&&q.type==='critic'&&!(q.dying>0)){const d=Math.abs(q.x-nx)+Math.abs(q.y-ny);if(d<=3)sc+=(4-d)*3}
+      if(sc<bs){bs=sc;best=o}}
+    return best}
+  if(e.type==='gossip'&&extraT<=0&&!here){// follows the hero it can see (ahead or to the side, up to 7 steps); otherwise likes to turn
+    // it can't see behind, but if it saw you a moment ago and you slipped past, it turns back and chases
+    const a=player.alive?lineOfFire(e,T.follow):null,behind=a&&(e.dx||e.dy)&&a[0]===-e.dx&&a[1]===-e.dy;
+    if(a&&(!behind||time-(e.seenT??-9)<2.5)){e.seenT=time;const t=opts.find(o=>o[0]===a[0]&&o[1]===a[1]);if(t)return t}
+    const side=opts.filter(o=>o[0]*e.dx+o[1]*e.dy===0),f=opts.find(o=>o[0]===e.dx&&o[1]===e.dy);
+    if(side.length&&(Math.random()<0.65||!f))return side[rand(side.length)];
+    return f||opts[0]}
   if(e.type==='skitter'&&extraT<=0&&!here&&player.alive){const a=lineOfFire(e,99);
     if(a){const f=opts.find(o=>o[0]===a[0]&&o[1]===a[1]);if(f){e.rush=true;e.pace=0;return f}}}
   if((e.type==='spitter'||e.type==='suspect'||e.type==='murder')&&extraT<=0){
@@ -1066,12 +1088,40 @@ function lineOfFire(e,maxd){
 function fireShot(e,dx,dy){
   const T=ETYPES[e.type],[ox,oy]=occ(e);let [rx,ry]=rpos(e);
   if(dx!==0)ry=oy;if(dy!==0)rx=ox;
-  shots.push({x:rx+dx*0.35,y:ry+dy*0.35,dx,dy,v:T.shoot==='lion'?5.5:T.shoot==='auto'?6:4.5,dmg:T.sdmg,big:T.shoot==='lion',pellet:T.shoot==='pellet'||T.shoot==='auto',red:T.shoot==='auto',life:4,from:e});
-  if(T.shoot==='auto'){tone(900,0.035,'square',0.03,-500);tone(220,0.04,'triangle',0.04,-80)}else if(T.shoot==='pellet'){tone(620,0.05,'square',0.035,-300);tone(180,0.06,'triangle',0.05,-60)}else tone(T.shoot==='lion'?180:320,0.12,'sawtooth',0.04,-120);
+  shots.push({x:rx+dx*0.35,y:ry+dy*0.35,dx,dy,v:T.shoot==='lion'?5.5:T.shoot==='auto'?6:T.shoot==='stream'?7.5:4.5,dmg:T.sdmg,big:T.shoot==='lion',pellet:T.shoot==='pellet'||T.shoot==='auto'||T.shoot==='stream',red:T.shoot==='auto',cyan:T.shoot==='stream',life:4,from:e});
+  if(T.shoot==='stream'){// rapid-fire rattle: sharp crack plus a low punch
+    if(ac&&!muted&&noiseBuf)noiseHit(ac.currentTime,0.05,'bandpass',2600,900,0.09,1.2);tone(95+Math.random()*15,0.045,'square',0.03,-40)}
+  else if(T.shoot==='auto'){tone(900,0.035,'square',0.03,-500);tone(220,0.04,'triangle',0.04,-80)}else if(T.shoot==='pellet'){tone(620,0.05,'square',0.035,-300);tone(180,0.06,'triangle',0.05,-60)}else tone(T.shoot==='lion'?180:320,0.12,'sawtooth',0.04,-120);
 }
 function updateShooter(e,dt){
   const T=ETYPES[e.type];if(!T.shoot)return false;
   if(extraT>0){e.windup=0;e.burst=0;return false}
+  if(T.shoot==='flame'){// Temper: stops and breathes a short, endless flame while you are close and in line
+    const a=player.alive&&!e.moving?lineOfFire(e,T.range):null;
+    if(a){e.aim=a;e.flaming=0.5}else if(e.flaming>0)e.flaming-=dt;
+    if(!(e.flaming>0))return false;
+    e.dx=e.aim[0];e.dy=e.aim[1];const [ex,ey]=occ(e),[px,py]=occ(player);
+    for(let r=1;r<=T.range;r++){const x=ex+e.dx*r,y=ey+e.dy*r;if(!inB(x,y)||grid[y][x]!==EMPTY)break;if(player.alive&&px===x&&py===y)hurtPlayer(T.sdmg)}
+    e.crackle=(e.crackle||0)-dt;if(e.crackle<=0){e.crackle=0.14;tone(120+Math.random()*80,0.08,'sawtooth',0.018,-40)}
+    return true}
+  if(T.shoot==='stream'){// Criticism: sees every side, turns at once and keeps firing while you are in its line
+    const a=player.alive?lineOfFire(e,T.range):null;
+    if(!a){e.firing=false;return false}
+    if(!e.firing)e.cd=0;e.firing=true;// first shot the moment it sees you
+    e.lastSeen=occ(player);e.seenT=time;e.aim=a;if(!e.moving){e.dx=a[0];e.dy=a[1]}
+    e.cd-=dt;if(e.cd<=0){e.cd=T.cd;fireShot(e,a[0],a[1])}
+    return !e.moving}// keeps firing while it finishes its step, then stands
+  if(T.shoot==='spray'){// Gossip: starts spraying when it sees you, keeps coming until its fire reaches, then stands and sprays; not behind
+    let a=player.alive?lineOfFire(e,T.sight||T.range):null;
+    if(a&&(e.dx||e.dy)&&a[0]===-e.dx&&a[1]===-e.dy&&!(time-(e.seenT??-9)<2.5))a=null;
+    if(a)e.seenT=time;
+    if(a){e.aim=a;e.spraying=0.3}else if(e.spraying>0)e.spraying-=dt;
+    e.talking=e.spraying>0;if(!e.talking)return false;
+    e.dx=e.aim[0];e.dy=e.aim[1];e.followAim=true;
+    const [ex,ey]=occ(e),[px,py]=occ(player);
+    for(let r=1;r<=T.range;r++){const x=ex+e.aim[0]*r,y=ey+e.aim[1]*r;if(!inB(x,y)||grid[y][x]!==EMPTY)break;if(player.alive&&px===x&&py===y)hurtPlayer(T.sdmg)}
+    e.hiss=(e.hiss||0)-dt;if(e.hiss<=0){e.hiss=0.12;if(ac&&!muted&&noiseBuf)noiseHit(ac.currentTime,0.2,'highpass',3800,5200,0.05,0.7)}
+    return !!a&&!e.moving&&Math.abs(px-ex)+Math.abs(py-ey)<=T.range}
   if(e.burst>0){e.burstT-=dt;if(e.burstT<=0){fireShot(e,e.aim[0],e.aim[1]);e.burst--;e.burstT=T.shoot==='auto'?0.13:0.2}return true}
   if(e.windup>0){e.windup-=dt;
     if(e.windup<=0){e.shots++;e.cd=T.cd*(0.8+Math.random()*0.4);
@@ -1092,6 +1142,8 @@ function updateShooter(e,dt){
   return false;
 }
 const GIANT_SIGHT=7,GIANT_GAP=5;
+// Levels where every boss keeps firing and its fire passes through crates (only demons block it)
+const OPEN_FIRE_LEVELS=new Set([50]);
 function giantFire(e,angles){
   for(const a of angles){const dx=Math.cos(a),dy=Math.sin(a);shots.push({x:e.x+dx*0.9,y:e.y+dy*0.9,dx,dy,v:3.2,dmg:2,big:true,life:7,lob:true,from:e})}
 }
@@ -1108,8 +1160,8 @@ function updateGiant(e,dt){
       deathCast(1);shake=Math.max(shake,0.2);
       e.cd=Math.max(1.4,2.6-0.25*(k-1))*(0.85+Math.random()*0.3)}
     return}
-  const myD=Math.hypot(px-e.x,py-e.y),sees=myD<=GIANT_SIGHT;e.sees=sees;
-  const other=enemies.some(o=>o!==e&&o.type==='giant'&&!o.dead&&!(o.dying>0)&&Math.hypot(px-o.x,py-o.y)<myD-2);
+  const open=OPEN_FIRE_LEVELS.has(level),myD=Math.hypot(px-e.x,py-e.y),sees=open||myD<=GIANT_SIGHT;e.sees=sees;
+  const other=!open&&enemies.some(o=>o!==e&&o.type==='giant'&&!o.dead&&!(o.dying>0)&&Math.hypot(px-o.x,py-o.y)<myD-2);
   e.cd-=dt*(other?0.35:1);
   if(e.cd<=0&&sees){e.windup=0.9;deathGrowl();return}
   if(e.cd<0)e.cd=0;
@@ -1132,7 +1184,7 @@ function updateShots(dt){
   for(const b of shots){
     b.x+=b.dx*b.v*dt;b.y+=b.dy*b.v*dt;b.life-=dt;
     const cx=Math.round(b.x),cy=Math.round(b.y);
-    const pillar=b.lob&&inB(cx,cy)&&grid[cy][cx]===WALL&&cx>0&&cy>0&&cx<COLS-1&&cy<ROWS-1;
+    const pillar=b.lob&&inB(cx,cy)&&(grid[cy][cx]===WALL||(grid[cy][cx]===CRATE&&OPEN_FIRE_LEVELS.has(level)))&&cx>0&&cy>0&&cx<COLS-1&&cy<ROWS-1;
     if(!inB(cx,cy)||(grid[cy][cx]!==EMPTY&&!pillar)||b.life<=0){b.dead=true;burst(b.x-.5,b.y-.5,'#ff8a3d',6,2,0.06);continue}
     if(enemies.some(e=>e!==b.from&&e.type!=='giant'&&!(e.type==='lies'&&e.vanish>0.25)&&Math.hypot(b.x-rpos(e)[0],b.y-rpos(e)[1])<0.45)){b.dead=true;burst(b.x-.5,b.y-.5,'#d8d4c0',6,2,0.06);continue}
     if(player.alive&&Math.hypot(b.x-px,b.y-py)<0.5){b.dead=true;burst(b.x-.5,b.y-.5,'#ffd36b',8,2.5,0.07);if(b.red&&player.hurtT>0&&player.shield<=0)player.hurtT=0;hurtPlayer(b.dmg)}
@@ -1144,7 +1196,7 @@ function drawShots(){
     if(b.pellet){ctx.save();
       for(let i=1;i<=3;i++){ctx.fillStyle=`rgba(200,196,170,${0.22-i*0.06})`;ctx.beginPath();ctx.arc(cx-b.dx*S*0.13*i,cy-b.dy*S*0.13*i,S*0.075*(1-i*0.15),0,Math.PI*2);ctx.fill()}
       ctx.fillStyle='rgba(0,0,0,.35)';ctx.beginPath();ctx.ellipse(cx,cy+S*0.14,S*0.07,S*0.03,0,0,Math.PI*2);ctx.fill();
-      const g=ctx.createRadialGradient(cx-S*0.03,cy-S*0.03,0,cx,cy,S*0.09);if(b.red){g.addColorStop(0,'#ffe0e0');g.addColorStop(0.45,'#e04a5a');g.addColorStop(1,'#5a1020')}else{g.addColorStop(0,'#f4f1e2');g.addColorStop(0.45,'#9a9682');g.addColorStop(1,'#3e3c32')}
+      const g=ctx.createRadialGradient(cx-S*0.03,cy-S*0.03,0,cx,cy,S*0.09);if(b.cyan){g.addColorStop(0,'#ecfff6');g.addColorStop(0.45,'#3fe0bc');g.addColorStop(1,'#0a4a3c')}else if(b.red){g.addColorStop(0,'#ffe0e0');g.addColorStop(0.45,'#e04a5a');g.addColorStop(1,'#5a1020')}else{g.addColorStop(0,'#f4f1e2');g.addColorStop(0.45,'#9a9682');g.addColorStop(1,'#3e3c32')}
       ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,S*0.09,0,Math.PI*2);ctx.fill();ctx.restore();continue}
     if(b.lob){ctx.save();const R0=S*0.19,pu=1+0.1*Math.sin(time*14+b.x*3);
       for(let i=4;i>=1;i--){ctx.fillStyle=`rgba(60,10,30,${0.13*(5-i)})`;ctx.beginPath();ctx.arc(cx-b.dx*S*0.17*i,cy-b.dy*S*0.17*i,R0*(1-i*0.15),0,Math.PI*2);ctx.fill()}
@@ -1172,6 +1224,7 @@ function updateLies(e,dt){
 function updateEnemies(dt){
   for(const e of enemies){
     if(e.dying>0){e.dying-=dt;if(e.dying<=0)e.dead=true;continue}
+    e.lean=(e.lean||0)+(((e.leanOn&&!e.moving)?0.26:0)-(e.lean||0))*Math.min(1,dt*5);// heavy: slides up slowly, no bounce
     e.wob+=dt;if(e.inv>0)e.inv-=dt;
     if(extraT>0){e.ltT-=dt;if(e.ltT<=0){e.ltT=2.5;e.letter=pickLetter()}}
     if(grace>0)continue;
@@ -1752,6 +1805,72 @@ function drawEnemy(e){
     ctx.strokeStyle='#f0c8a8';ctx.lineWidth=S*0.05;ctx.beginPath();ctx.moveTo(fx,fy);ctx.lineTo(fx+ad[0]*S*0.16,fy+ad[1]*S*0.16);ctx.stroke();
     if(e.burst>0&&e.burstT>0.08){ctx.fillStyle='rgba(255,220,120,.9)';ctx.beginPath();ctx.arc(fx+ad[0]*S*0.2,fy+ad[1]*S*0.2,S*0.06,0,Math.PI*2);ctx.fill()}
     ctx.restore();
+  }else if(e.type==='critic'){
+    const step=e.moving?Math.sin(e.prog*Math.PI*4):0,R=S*0.37,bx=cx,by=cy+S*0.1-Math.abs(step)*S*0.02;
+    ctx.save();ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(cx,cy+S*0.45,S*0.34,S*0.08,0,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#6b7a8a';ctx.lineWidth=Math.max(2,S*0.06);ctx.lineCap='round';
+    for(const [o,ph] of [[-0.5,0],[0,Math.PI],[0.5,0]]){const lift=e.moving?Math.max(0,Math.sin(e.prog*Math.PI*4+ph))*R*0.12:0;
+      ctx.beginPath();ctx.moveTo(bx+o*R,by+R*0.2);ctx.lineTo(bx+o*R*1.25,by+R*0.85-lift);ctx.stroke()}
+    ctx.fillStyle=flash?'#fff':'#9aa8b8';ctx.beginPath();ctx.ellipse(bx,by+R*0.22,R*1.02,R*0.24,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=flash?'#fff':col;ctx.beginPath();ctx.moveTo(bx-R,by+R*0.18);ctx.arc(bx,by+R*0.18,R,Math.PI,0);ctx.closePath();ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.7)';ctx.beginPath();ctx.ellipse(bx-R*0.42,by-R*0.45,R*0.2,R*0.1,-0.6,0,Math.PI*2);ctx.fill();
+    const [ax,ay]=e.aim||[0,1],look=e.firing?[ax,ay]:[Math.sign(tx-bx)*0.6,Math.sign(ty-by)*0.3];
+    ctx.fillStyle='#16303a';ctx.beginPath();ctx.roundRect(bx-R*0.7,by-R*0.42,R*1.4,R*0.36,R*0.18);ctx.fill();
+    ctx.fillStyle=e.firing?'#9ff6ff':'#3fd8e8';ctx.beginPath();ctx.ellipse(bx+look[0]*R*0.38,by-R*0.24+look[1]*R*0.06,R*(e.firing?0.2:0.15),R*0.1,0,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#4a5868';ctx.lineWidth=Math.max(1.5,S*0.035);ctx.beginPath();ctx.moveTo(bx-R*0.55,by-R*0.62);ctx.lineTo(bx-R*0.1,by-R*0.5);ctx.moveTo(bx+R*0.55,by-R*0.62);ctx.lineTo(bx+R*0.1,by-R*0.5);ctx.stroke();
+    ctx.restore();
+  }else if(e.type==='temper'){
+    const fl=e.flaming>0,step=e.moving?Math.sin(e.prog*Math.PI*4):0,R=S*0.36,bx=cx,by=cy+S*0.07-Math.abs(step)*S*0.02;
+    ctx.save();
+    if(fl){const [ax,ay]=e.aim,[ox,oy]=occ(e);let n=0;for(let r=1;r<=T.range;r++){const x=ox+ax*r,y=oy+ay*r;if(!inB(x,y)||grid[y][x]!==EMPTY)break;n=r}
+      ctx.globalAlpha=0.85;
+      for(let i=0;i<n*5+3;i++){const k=i/(n*5+3),d=(0.35+k*(n+0.15))*S,w=S*(0.16+0.16*k)*(0.8+0.3*Math.sin(time*30+i*1.7)),j=Math.sin(time*25+i)*S*0.05;
+        ctx.fillStyle=k<0.3?'#fff2b0':k<0.65?'#ffb03a':'#ff5a2a';ctx.beginPath();ctx.arc(bx+ax*d+(ay?j:0),cy+ay*d+(ax?j:0),w,0,Math.PI*2);ctx.fill()}
+      ctx.globalAlpha=1}
+    ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(cx,cy+S*0.44,S*0.34,S*0.08,0,0,Math.PI*2);ctx.fill();
+    // steam puffs from the head
+    for(const sd of[-1,1]){const t=(time*(fl?2.4:0.9)+(sd>0?0.5:0)+e.wob)%1;ctx.globalAlpha=(1-t)*(fl?0.9:0.45);ctx.fillStyle='#f2eef0';
+      ctx.beginPath();ctx.arc(bx+sd*R*(0.45+t*0.3),by-R*(0.95+t*0.7),R*(0.12+t*0.14),0,Math.PI*2);ctx.fill()}
+    ctx.globalAlpha=1;ctx.fillStyle=flash?'#fff':col;ctx.beginPath();
+    ctx.moveTo(bx-R,by+R*0.75);ctx.quadraticCurveTo(bx-R*1.05,by-R*0.85,bx,by-R*0.95);ctx.quadraticCurveTo(bx+R*1.05,by-R*0.85,bx+R,by+R*0.75);ctx.quadraticCurveTo(bx,by+R*1.0,bx-R,by+R*0.75);ctx.fill();
+    ctx.fillStyle=flash?'#fff':'#f58a7c';ctx.beginPath();ctx.ellipse(bx-R*0.38,by-R*0.5,R*0.22,R*0.12,-0.5,0,Math.PI*2);ctx.fill();
+    eyes(bx,by-R*0.2,R*0.3,R*0.15,tx,ty,'#2a0808');
+    ctx.strokeStyle='#5a1010';ctx.lineWidth=Math.max(1.5,S*0.045);ctx.lineCap='round';
+    for(const sd of[-1,1]){ctx.beginPath();ctx.moveTo(bx+sd*R*0.5,by-R*(fl?0.52:0.45));ctx.lineTo(bx+sd*R*0.14,by-R*0.36);ctx.stroke()}
+    ctx.fillStyle='#3a0808';const mh=fl?R*0.3:R*0.08;ctx.beginPath();ctx.ellipse(bx,by+R*0.35,R*(fl?0.32:0.25),mh,0,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }else if(e.type==='gossip'){
+    const step=e.moving?Math.sin(e.prog*Math.PI*4):0,R=S*0.36,bx=cx,by=cy+S*0.06-Math.abs(step)*S*0.02;
+    const talk=0.3+0.7*Math.abs(Math.sin(time*(e.talking?17:5)+e.wob));
+    ctx.save();
+    if(e.talking){const [ax,ay]=e.aim,[ox,oy]=occ(e),cells=[];
+      for(let r=1;r<=T.range;r++){const x=ox+ax*r,y=oy+ay*r;if(!inB(x,y)||grid[y][x]!==EMPTY)break;cells.push([x,y])}
+      // the lamp's flame, laid along the spray and stretched over the squares it reaches
+      // flowing ribbons of fire: one main strand, a smaller one above and one below, waves travelling to the tip
+      const L=S*(cells.length+0.35),t=time*1.0+e.wob;
+      const strands=[{o:-S*0.16,a:S*0.13,w:S*0.36,l:0.75,f:1.5,p:1.3},{o:S*0.16,a:S*0.12,w:S*0.32,l:0.65,f:1.7,p:2.6},{o:0,a:S*0.1,w:S*0.72,l:1,f:1.2,p:0}];
+      ctx.save();ctx.translate(bx+ax*R*0.55,by+R*0.3+ay*R*0.55);ctx.rotate(Math.atan2(ay,ax)+Math.PI/2);
+      const ribbon=(st,ws)=>{const N=18,len=L*st.l*(0.94+0.06*Math.sin(t*13+st.p)),pts=[];
+        for(let k=0;k<=N;k++){const u=k/N,x=st.o*u+st.a*Math.sin(u*st.f*Math.PI*2-t*14+st.p)*(0.25+u),w=st.w*ws*Math.pow(Math.sin(Math.PI*(0.12+0.88*u)),0.75)*(0.9+0.1*Math.sin(t*21+k));pts.push([x,-u*len,w])}
+        ctx.beginPath();pts.forEach(([x,y,w],k)=>k?ctx.lineTo(x-w/2,y):ctx.moveTo(x-w/2,y));
+        for(let k=pts.length-1;k>=0;k--){const [x,y,w]=pts[k];ctx.lineTo(x+w/2,y)}ctx.closePath();ctx.fill()};
+      for(const [c,ws,al] of [['#e8401a',1.45,0.18],['#f0501a',1.15,0.4],['#ff6a1c',0.88,0.7],['#ff9a28',0.64,0.85],['#ffc23a',0.4,0.9],['#fff0b0',0.18,0.85]]){
+        ctx.fillStyle=c;ctx.globalAlpha=al;for(const st of strands)ribbon(st,ws)}
+      ctx.globalAlpha=1;ctx.restore()}ctx.fillStyle='rgba(0,0,0,.3)';ctx.beginPath();ctx.ellipse(cx,cy+S*0.44,S*0.34,S*0.08,0,0,Math.PI*2);ctx.fill();
+    // eyes on stalks, watching both sides
+    ctx.strokeStyle=flash?'#fff':'#a8357a';ctx.lineWidth=Math.max(1.5,S*0.04);ctx.lineCap='round';
+    for(const sd of[-1,1]){const sx=bx+sd*R*0.62,sy=by-R*1.28+Math.sin(time*3+sd+e.wob)*R*0.05;
+      ctx.beginPath();ctx.moveTo(bx+sd*R*0.3,by-R*0.7);ctx.lineTo(sx,sy);ctx.stroke();
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(sx,sy,R*0.17,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#2a0a1e';ctx.beginPath();ctx.arc(sx+sd*R*0.07,sy,R*0.08,0,Math.PI*2);ctx.fill()}
+    ctx.fillStyle=flash?'#fff':col;ctx.beginPath();ctx.ellipse(bx,by,R,R*0.92,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=flash?'#fff':'#f08cc4';ctx.beginPath();ctx.ellipse(bx-R*0.35,by-R*0.45,R*0.25,R*0.14,-0.5,0,Math.PI*2);ctx.fill();
+    const mw=R*0.62,mh=R*0.42*talk,my=by+R*0.3;
+    ctx.fillStyle='#3a0a26';ctx.beginPath();ctx.ellipse(bx,my,mw,Math.max(R*0.06,mh),0,0,Math.PI*2);ctx.fill();
+    if(mh>R*0.12){ctx.fillStyle='#ff7aa8';ctx.beginPath();ctx.ellipse(bx,my+mh*0.45,mw*0.5,mh*0.4,0,0,Math.PI*2);ctx.fill()}
+    ctx.fillStyle='#fff';for(const o of[-0.32,0,0.32])ctx.fillRect(bx+o*mw-R*0.06,my-Math.max(R*0.06,mh),R*0.12,R*0.1);
+    eyes(bx,by-R*0.28,R*0.3,R*0.17,tx,ty,'#2a0a1e');
+    ctx.restore();
   }else if(e.type==='doubt'){
     const wind=e.windup>0,[ax,ay]=e.aim,step=e.moving?Math.sin(e.prog*Math.PI*4):0,lean=Math.sin(time*2.1+e.wob)*0.12+(e.moving?step*0.06:0);
     const R=S*0.4,bx=cx,by=cy+S*0.08-Math.abs(step)*S*0.025;
@@ -2041,6 +2160,7 @@ function draw(){
     ctx.save();ctx.globalAlpha=Math.min(1,k*1.4);ctx.translate(cx,cy+(1-k)*S*0.15);ctx.rotate((1-k)*(e.wob%2>1?0.6:-0.6));ctx.scale(0.35+0.65*k,0.35+0.65*k*(0.8+0.2*k));ctx.translate(-cx,-cy);
     drawEnemy({...e,inv:Math.sin(time*40)>0?0.1:0,moving:false,windup:0});ctx.restore();
     ctx.save();ctx.globalAlpha=(1-k)*0.6*k*2;ctx.strokeStyle='#fff8d0';ctx.lineWidth=Math.max(1.5,S*0.04);ctx.beginPath();ctx.arc(cx,cy,S*(0.25+(1-k)*0.4),0,Math.PI*2);ctx.stroke();ctx.restore()}
+    else if(e.lean>0.01){const k=e.lean*S;ctx.save();ctx.translate(e.ldx*k,e.ldy*k);drawEnemy(e);ctx.restore()}
     else drawEnemy(e)}
   drawShots();
   drawPlayer();drawParticles();drawBalloons();
