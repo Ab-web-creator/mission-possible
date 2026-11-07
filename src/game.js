@@ -187,11 +187,17 @@ function layStones(boss,gs){
 }
 // Every boss level hides this set of pickups, in different crates each time it is played.
 const BOSS_LOOT=['shield','shield','shield','heal','heal','heal','fullheal','fire','quick'];
+// Pickups some levels always hide in a crate in the lower half of the board (level 20: a Shield and a Full health).
+const LOWER_LOOT={20:['shield','fullheal']};
+// Put these pickups into these crates at random, honouring LOWER_LOOT. Crates are [x,y] pairs.
+function hideLoot(vals,cr){vals=[...vals];cr=[...cr].sort(()=>Math.random()-.5);const used=new Set();
+  for(const t of LOWER_LOOT[level]||[]){const vi=vals.indexOf(t),c=cr.find(([x,y])=>y>(ROWS-1)/2&&!used.has(key(x,y)));
+    if(vi<0||!c)continue;vals.splice(vi,1);used.add(key(c[0],c[1]));hidden[key(c[0],c[1])]=t}
+  const rest=cr.filter(([x,y])=>!used.has(key(x,y)));vals.forEach((t,i)=>{if(rest[i])hidden[key(rest[i][0],rest[i][1])]=t})}
 function genBoss(){
   const k=bossK();tunnels=[];
   if(LEVEL_MAPS[level]){spawnX=1;spawnY=1;genMap(LEVEL_MAPS[level]);hidden={};items={};exit={x:-1,y:-1,revealed:false};
-    {const cr=[];for(let y=1;y<ROWS-1;y++)for(let x=1;x<COLS-1;x++)if(grid[y][x]===CRATE)cr.push([x,y]);cr.sort(()=>Math.random()-.5);
-     BOSS_LOOT.forEach((t,i)=>{if(cr[i])hidden[key(cr[i][0],cr[i][1])]=t})}coinsTotal=coins.size;
+    {const cr=[];for(let y=1;y<ROWS-1;y++)for(let x=1;x<COLS-1;x++)if(grid[y][x]===CRATE)cr.push([x,y]);hideLoot(BOSS_LOOT,cr)}coinsTotal=coins.size;
     flameT=Array.from({length:ROWS},()=>new Float32Array(COLS));flameD=Array.from({length:ROWS},()=>new Uint8Array(COLS));
     flameK=Array.from({length:ROWS},()=>new Array(COLS).fill('c'));danger=Array.from({length:ROWS},()=>new Uint8Array(COLS));return}
   const gs=[];for(let i=0;i<k;i++)gs.push([1.5+(i+0.5)*(COLS-4)/k,2.5+(i%2)*1.5]);
@@ -272,8 +278,7 @@ function applyLayout(L){
   COLS=L.cols;ROWS=L.rows||13;grid=[];for(let y=0;y<ROWS;y++)grid.push([...L.g.slice(y*COLS,(y+1)*COLS)].map(Number));
   hidden={};items={};exit={x:-1,y:-1,revealed:false};tunnels=(L.tun||[]).map(t=>[...t]);
   // same pickups, but shuffled into different crates, so a restart or a loaded save isn't a memory game
-  {const vals=Object.values(L.hidden||{}),cr=[];for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(grid[y][x]===CRATE)cr.push(key(x,y));
-   cr.sort(()=>Math.random()-.5);vals.forEach((v,i)=>{if(cr[i])hidden[cr[i]]=v})}
+  {const cr=[];for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(grid[y][x]===CRATE)cr.push([x,y]);hideLoot(Object.values(L.hidden||{}),cr)}
   for(const k in (L.it||{})){const v=L.it[k];items[k]=v.startsWith('letter:')?{type:'letter',letter:v.slice(7),born:-9,life:15}:{type:v,born:-9,life:ITEM_LIFE}}
   enemies=L.en.map(([t,x,y,hp])=>{const e=makeEnemy(t,x,y);if(hp)e.hp=hp;return e});coins=new Set(L.coins);coinsTotal=coins.size;
   flameT=Array.from({length:ROWS},()=>new Float32Array(COLS));flameD=Array.from({length:ROWS},()=>new Uint8Array(COLS));
