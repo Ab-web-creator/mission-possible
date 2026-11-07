@@ -5,7 +5,7 @@ export const INTRO={31:{type:'suspect',desc:'Slow, but it watches behind its bac
              4:{type:'skitter',desc:'It dodges your lamps, shoots, and rushes at you when it sees you.'},
              6:{type:'spitter',desc:'It never turns back. When it sees you, it throws a fireball.'},
              11:{type:'greed',desc:'It chases you, a little faster than you. Jump into a tunnel and stay still!'},
-             22:{type:'brute',desc:'It hunts you down and takes two blasts of light to stop.'},
+             22:{type:'brute',desc:'It hunts you down and never turns back. Get behind it!'},
              10:{type:'lion',desc:'Boss! Bursts and rings of fire. Takes 3 blasts.'},
              34:{type:'lies',desc:'Alone it barely hurts, especially if you don’t believe it. But lies bring worse troubles with them.'},
              29:{type:'theft',desc:'It snatches power-ups and coins, and steals your lamps.'},

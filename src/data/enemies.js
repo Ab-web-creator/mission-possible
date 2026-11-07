@@ -17,7 +17,7 @@ export const ETYPES={
   critic: {name:'Criticism', speed:0.8, hp:1, pts:500, dmg:1, ai:'wander', avoid:false, ghost:false, col:'#dfe7ef', shoot:'stream', cd:0.13, sdmg:1, range:99},
   gossip: {name:'Gossip', speed:0.85,hp:1, pts:500, dmg:1, ai:'wander', avoid:false, ghost:false, col:'#d9559e', shoot:'spray', sdmg:1, range:2, sight:3, follow:7},
   temper: {name:'Temper', speed:1.0, hp:1, pts:450, dmg:2, ai:'wander', avoid:false, ghost:false, col:'#e8584a', shoot:'flame', sdmg:1, range:3},
-  brute:  {name:'Hatred',  speed:1.35,hp:2, pts:500, dmg:4, ai:'chase', range:10, avoid:true, ghost:false, col:'#7fa845'}
+  brute:  {name:'Hatred',  speed:1.35,hp:1, pts:500, dmg:4, ai:'chase', range:10, avoid:true, ghost:false, col:'#7fa845'}
 };
 export const BASE_FUSE=2.8,MIN_FUSE=2.0;
 export const SPEED_STEP=0.8,SPEED_MAX=3.6+SPEED_STEP*6,FAST_SPEED=9,FAST_TIME=15;

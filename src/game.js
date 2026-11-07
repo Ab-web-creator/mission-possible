@@ -941,6 +941,8 @@ function choose(e){
     if(blocked(nx,ny,T.ghost)||flameT[ny][nx]>0||enemyAt(nx,ny,e))return false;
     if(tunnelAt(nx,ny)>=0&&player.alive&&!player.moving&&player.x===nx&&player.y===ny)return false;
     if(T.avoid&&danger[ny][nx]&&!here)return false;return true});
+  // Hatred never turns back unless it is in a dead end
+  if(e.type==='brute'&&extraT<=0&&(e.dx||e.dy)){const fw=opts.filter(o=>!(o[0]===-e.dx&&o[1]===-e.dy));if(fw.length)opts=fw}
   if(!opts.length)return null;
   if(T.avoid&&here){const safe=opts.filter(([dx,dy])=>!danger[e.y+dy][e.x+dx]);
     if(safe.length)opts=safe;
@@ -2245,7 +2247,7 @@ function titleCard(){
         <dt>${k('M')}</dt><dd>Music on/off</dd>
         <dt>${k('F')}</dt><dd>Full screen</dd>
       </dl>
-      <p class="knote">Nothing is saved automatically. Press <b>Save level</b> while playing to keep the current board, hearts and power-ups; your saves appear under <b>Saved levels</b> on the right.</p></section>
+      <p class="knote">Press <b>Save level</b> while playing to keep the current board, hearts and power-ups; your saves appear under <b>Saved levels</b> on the right.</p></section>
     </div>`,true);
   wireSave();
 }
