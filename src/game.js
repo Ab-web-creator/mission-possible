@@ -99,6 +99,8 @@ const areaK=()=>1;
 /* ---------- state ---------- */
 let state='title',level=1,score=0,lives=3,best=0;
 let flameD,grid,hidden,items,bombs,enemies,flameT,flameK,danger,exit,particles,player;
+// How long a pickup lies on the floor once revealed; Light of Truth is short-lived.
+const LIFE_OF={reveal:6},lifeOf=t=>LIFE_OF[t]||ITEM_LIFE;
 const ITEM_LIFE=20,END_TIME=6,DEATH_TIME=4;
 const BASE_BOMBS=5,MAX_BOMBS=8,BASE_FIRE=2,MAX_FIRE=4,MAX_HP=12,EXTRA_TIME=20,LETTERS=['G','R','A','C','E'];
 let coins=new Set(),coinsTotal=0,extraT=0,extraUsed=false,extraBanner=0,endWait=0,letters=new Set();
@@ -279,7 +281,7 @@ function applyLayout(L){
   hidden={};items={};exit={x:-1,y:-1,revealed:false};tunnels=(L.tun||[]).map(t=>[...t]);
   // same pickups, but shuffled into different crates, so a restart or a loaded save isn't a memory game
   {const cr=[];for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(grid[y][x]===CRATE)cr.push([x,y]);hideLoot(Object.values(L.hidden||{}),cr)}
-  for(const k in (L.it||{})){const v=L.it[k];items[k]=v.startsWith('letter:')?{type:'letter',letter:v.slice(7),born:-9,life:15}:{type:v,born:-9,life:ITEM_LIFE}}
+  for(const k in (L.it||{})){const v=L.it[k];items[k]=v.startsWith('letter:')?{type:'letter',letter:v.slice(7),born:-9,life:15}:{type:v,born:-9,life:lifeOf(v)}}
   enemies=L.en.map(([t,x,y,hp])=>{const e=makeEnemy(t,x,y);if(hp)e.hp=hp;return e});coins=new Set(L.coins);coinsTotal=coins.size;
   flameT=Array.from({length:ROWS},()=>new Float32Array(COLS));flameD=Array.from({length:ROWS},()=>new Uint8Array(COLS));
   flameK=Array.from({length:ROWS},()=>new Array(COLS).fill('c'));
@@ -698,7 +700,7 @@ function updateMelts(dt){
 function breakCrate(x,y){
   grid[y][x]=EMPTY;score+=10;burst(x,y,theme().c,10,3.2,0.1);
   const k=key(x,y),h=hidden[k];
-  if(h){delete hidden[k];if(h==='exit')exit.revealed=true;else items[k]={type:h,born:time,life:ITEM_LIFE}}
+  if(h){delete hidden[k];if(h==='exit')exit.revealed=true;else items[k]={type:h,born:time,life:lifeOf(h)}}
 }
 function explode(b){
   const i=bombs.indexOf(b);if(i<0)return;bombs.splice(i,1);
@@ -907,7 +909,7 @@ function onDeath(e){
   if(e.type==='theft'||e.type==='greed'){
     const back=[...e.loot.slice(-3)];for(let i=0;i<Math.min(2,e.lamps);i++)back.push('bomb');
     const spots=nearFree(e.x,e.y,back.length+e.coins);
-    back.forEach((t,i)=>{if(spots[i])items[key(spots[i][0],spots[i][1])]={type:t,born:time,life:ITEM_LIFE}});
+    back.forEach((t,i)=>{if(spots[i])items[key(spots[i][0],spots[i][1])]={type:t,born:time,life:lifeOf(t)}});
     for(let i=0;i<e.coins;i++){const sp=spots[back.length+i];if(sp)coins.add(key(sp[0],sp[1]))}
     if(back.length||e.coins)floatText(e.x,e.y-0.5,'Returned!','#ffd36b')}
 }
@@ -2220,7 +2222,8 @@ function hideOverlay(){$('overlay').hidden=true}
 function titleCard(){
   const k=t=>`<kbd>${t}</kbd>`;
   showOverlay(`<header class="thead"><h1>Mission <span class="im">Im</span>possible</h1>
-      ${playerName?`<p class="welcome">Welcome, ${esc(playerName)}!</p>`:''}</header>
+      <div class="tright">${playerName?`<p class="welcome">Welcome, ${esc(playerName)}!</p>`:''}
+        <div class="tstart"><button class="go big" id="goBtn" type="button">Start</button></div></div></header>
     <p class="lead">Guide the Pilgrim through dark places held by demons. Set down lamps whose light drives the demons out, and defeat them all to finish the level.</p>
     <div class="tgrid">
       <section><span class="sec">How to play</span><ul class="tlist">
