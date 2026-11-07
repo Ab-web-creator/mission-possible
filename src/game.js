@@ -185,11 +185,13 @@ function layStones(boss,gs){
     row.push(edge||(!ring&&!nearG&&f(x,y))?WALL:EMPTY)}grid.push(row)}};
   mk(pat);if(!stonesOK())mk(STONE_PATS[0]);
 }
+// Every boss level hides this set of pickups, in different crates each time it is played.
+const BOSS_LOOT=['shield','shield','shield','heal','heal','heal','fullheal','fire','quick'];
 function genBoss(){
   const k=bossK();tunnels=[];
   if(LEVEL_MAPS[level]){spawnX=1;spawnY=1;genMap(LEVEL_MAPS[level]);hidden={};items={};exit={x:-1,y:-1,revealed:false};
     {const cr=[];for(let y=1;y<ROWS-1;y++)for(let x=1;x<COLS-1;x++)if(grid[y][x]===CRATE)cr.push([x,y]);cr.sort(()=>Math.random()-.5);
-     ['shield','shield','shield','heal','heal','heal','fullheal','fire','quick'].forEach((t,i)=>{if(cr[i])hidden[key(cr[i][0],cr[i][1])]=t})}coinsTotal=coins.size;
+     BOSS_LOOT.forEach((t,i)=>{if(cr[i])hidden[key(cr[i][0],cr[i][1])]=t})}coinsTotal=coins.size;
     flameT=Array.from({length:ROWS},()=>new Float32Array(COLS));flameD=Array.from({length:ROWS},()=>new Uint8Array(COLS));
     flameK=Array.from({length:ROWS},()=>new Array(COLS).fill('c'));danger=Array.from({length:ROWS},()=>new Uint8Array(COLS));return}
   const gs=[];for(let i=0;i<k;i++)gs.push([1.5+(i+0.5)*(COLS-4)/k,2.5+(i%2)*1.5]);
@@ -198,9 +200,10 @@ function genBoss(){
   if(first){grid=[];for(let y=0;y<ROWS;y++){const row=[];for(let x=0;x<COLS;x++){const edge=x===0||y===0||x===COLS-1||y===ROWS-1;
     const nearG=Math.abs(x-gs[0][0])<=1&&Math.abs(y-gs[0][1])<=1;row.push(edge||(!nearG&&x%2===0&&y%2===0)?WALL:EMPTY)}grid.push(row)}}
   hidden={};items={};exit={x:-1,y:-1,revealed:false};
-  const cover=[[3,ROWS-6],[COLS-4,ROWS-6],[7,ROWS-6],[COLS-8,ROWS-6],[1,ROWS-4],[COLS-2,ROWS-4],[5,ROWS-4],[COLS-6,ROWS-4],[3,5],[COLS-4,5]];
-  const loot=['shield','heal','heal','bomb','fire','shield','fullheal','fire','bomb','speed'];
-  if(!first)cover.forEach(([x,y],i)=>{if(grid[y]&&x>0&&x<COLS-1&&y>0&&y<ROWS-1){grid[y][x]=CRATE;hidden[key(x,y)]=loot[i%loot.length]}});
+  // level 10 has no map: put the boss pickups in crates on random free squares, away from the start and from Death
+  {const sx=first?1:(COLS>>1),sy=ROWS-2,free=[];
+   for(let y=1;y<ROWS-1;y++)for(let x=1;x<COLS-1;x++)if(grid[y][x]===EMPTY&&Math.abs(x-sx)+Math.abs(y-sy)>3&&!gs.some(([gx,gy])=>Math.abs(x-gx)<=2.2&&Math.abs(y-gy)<=2.2))free.push([x,y]);
+   free.sort(()=>Math.random()-.5);BOSS_LOOT.forEach((t,i)=>{const c=free[i];if(c){grid[c[1]][c[0]]=CRATE;hidden[key(c[0],c[1])]=t}})}
   enemies=[];
   for(let i=0;i<k;i++){const [x,gy]=gs[i];const g=makeEnemy('giant',x,gy);g.cd=2.2+i*1.1;enemies.push(g)}
   spawnX=first?1:(COLS>>1);spawnY=ROWS-2;
@@ -267,7 +270,10 @@ function layoutOf(){const [px,py]=occ(player);const it={};for(const k in items)i
   return{cols:COLS,rows:ROWS,g:grid.map(r=>r.join('')).join(''),hidden:{...hidden},en:enemies.map(e=>{const [x,y]=occ(e);return[e.type,x,y,e.hp]}),coins:[...coins],it,px,py,tun:tunnels.map(t=>[...t])}}
 function applyLayout(L){
   COLS=L.cols;ROWS=L.rows||13;grid=[];for(let y=0;y<ROWS;y++)grid.push([...L.g.slice(y*COLS,(y+1)*COLS)].map(Number));
-  hidden={...L.hidden};items={};exit={x:-1,y:-1,revealed:false};tunnels=(L.tun||[]).map(t=>[...t]);
+  hidden={};items={};exit={x:-1,y:-1,revealed:false};tunnels=(L.tun||[]).map(t=>[...t]);
+  // same pickups, but shuffled into different crates, so a restart or a loaded save isn't a memory game
+  {const vals=Object.values(L.hidden||{}),cr=[];for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(grid[y][x]===CRATE)cr.push(key(x,y));
+   cr.sort(()=>Math.random()-.5);vals.forEach((v,i)=>{if(cr[i])hidden[cr[i]]=v})}
   for(const k in (L.it||{})){const v=L.it[k];items[k]=v.startsWith('letter:')?{type:'letter',letter:v.slice(7),born:-9,life:15}:{type:v,born:-9,life:ITEM_LIFE}}
   enemies=L.en.map(([t,x,y,hp])=>{const e=makeEnemy(t,x,y);if(hp)e.hp=hp;return e});coins=new Set(L.coins);coinsTotal=coins.size;
   flameT=Array.from({length:ROWS},()=>new Float32Array(COLS));flameD=Array.from({length:ROWS},()=>new Uint8Array(COLS));
@@ -2296,9 +2302,12 @@ addEventListener('keydown',e=>{if(e.target.tagName!=='INPUT'&&e.code==='KeyF'&&!
 const onFs=()=>{$('btnFull').textContent=isFull()?'Exit full screen':'Full screen';resize()};
 document.addEventListener('fullscreenchange',onFs);document.addEventListener('webkitfullscreenchange',onFs);
 
+// The key that closes a pop-up does nothing else until it is let go, so holding Space never drops a lamp.
+let swallowKey=null;
 const introDismiss=e=>{if(!introOpen||state!=='play')return;if(performance.now()-introAt<INTRO_MIN){e.preventDefault();e.stopPropagation();return}
-  e.preventDefault();e.stopPropagation();audio();closeIntro()};
-addEventListener('keydown',e=>{if(e.repeat&&introOpen){e.preventDefault();e.stopPropagation();return}introDismiss(e)},true);
+  e.preventDefault();e.stopPropagation();if(e.code)swallowKey=e.code;audio();closeIntro()};
+addEventListener('keydown',e=>{if((e.repeat&&introOpen)||(swallowKey&&e.code===swallowKey)){e.preventDefault();e.stopPropagation();return}introDismiss(e)},true);
+addEventListener('keyup',e=>{if(e.code===swallowKey)swallowKey=null},true);
 addEventListener('mousedown',introDismiss,true);
 /* ---------- boot ---------- */
 player=makePlayer();startLevel();banner=0;grace=99;
