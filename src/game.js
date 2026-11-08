@@ -307,7 +307,7 @@ function startLevel(L,M){
   if(L&&L.g)applyLayout(L);else{COLS=17;ROWS=15;gen()}
   placeGiants();
   const sx=L&&L.g&&L.px||spawnX,sy=L&&L.g&&L.py||spawnY;calcBossMax();
-  Object.assign(player,{x:sx,y:sy,tx:sx,ty:sy,prog:0,moving:false,alive:true,deathT:0,face:'down',fastT:0,tpLock:false,stay:[],cheer:0});
+  Object.assign(player,{x:sx,y:sy,tx:sx,ty:sy,prog:0,moving:false,alive:true,deathT:0,face:'down',fastT:0,tpLock:false,stay:[],stayT:0,cheer:0});
   curLayout=L&&L.g?L:layoutOf();
   player.shield=Math.max(player.shield,2);
   const special=INTRO[level]||lionCount()||(level>1&&(level-1)%5===0);
@@ -695,6 +695,9 @@ function slideFree(x,y,b){
 function kickBomb(b,dx,dy){if(slideFree(b.x+dx,b.y+dy,b)){b.slide=[dx,dy];b.sp=0;sfx.kick()}}
 function addFlame(x,y,k,d){flameT[y][x]=FLAME_LIFE;flameK[y][x]=k;flameD[y][x]=d||4}
 let melts=[],tunnels=[];const TOUCH=0.15;
+// After coming out of a tunnel, keys already held are ignored this long: a tap stops at the exit,
+// holding on carries the Pilgrim on after a short look around. A newly pressed key works at once.
+const TUNNEL_PAUSE=0.35;
 function tryTunnel(){const p=player;if(!p.alive||!tunnels.length)return;
   const ti=tunnelAt(p.x,p.y);if(ti<0||p.moving){if(ti<0&&!p.moving)p.tpLock=false;return}
   if(p.tpLock)return;const d=tunnels[(ti+1)%tunnels.length];if(!d||tunnels.length<2)return;
@@ -702,7 +705,7 @@ function tryTunnel(){const p=player;if(!p.alive||!tunnels.length)return;
     const fr=DLIST.map(([dx,dy])=>[d[0]+dx,d[1]+dy]).filter(([x,y])=>inB(x,y)&&grid[y][x]===EMPTY&&tunnelAt(x,y)<0&&!enemyAt(x,y,o));
     const alt=tunnels.find((t,k)=>k!==ti&&t!==d&&!enemies.some(q=>q!==o&&occ(q)[0]===t[0]&&occ(q)[1]===t[1]));
     const to=fr.length?fr[rand(fr.length)]:alt;if(to){o.x=o.tx=to[0];o.y=o.ty=to[1];o.moving=false;o.prog=0;o.tpLock=tunnelAt(to[0],to[1])>=0}}
-  burst(p.x,p.y,'#7ae8ff',14,3,0.08);p.x=p.tx=d[0];p.y=p.ty=d[1];p.moving=false;p.prog=0;p.tpLock=true;p.stay=[...held];tunnelWhoosh();burst(p.x,p.y,'#7ae8ff',14,3,0.08)}
+  burst(p.x,p.y,'#7ae8ff',14,3,0.08);p.x=p.tx=d[0];p.y=p.ty=d[1];p.moving=false;p.prog=0;p.tpLock=true;p.stay=[...held];p.stayT=TUNNEL_PAUSE;tunnelWhoosh();burst(p.x,p.y,'#7ae8ff',14,3,0.08)}
 function tunnelAt(x,y){for(let i=0;i<tunnels.length;i++)if(tunnels[i][0]===x&&tunnels[i][1]===y)return i;return -1}
 function tunnelWhoosh(){if(!ac||muted||!noiseBuf)return;noiseHit(ac.currentTime,0.35,'bandpass',400,2400,0.12,2);tone(330,0.3,'sine',0.04,500)}
 function tunnelDest(i,avoidPlayer){const n=tunnels.length;for(let s=1;s<n;s++){const [x,y]=tunnels[(i+s)%n];
@@ -832,7 +835,7 @@ function updatePlayer(dt){
     if(s<=3&&s!==p.fastWarn&&p.fastT>0){p.fastWarn=s;tone(s<=1?990:740,0.07,'triangle',0.05)}
     if(p.fastT<=0){p.fastT=0;p.fastWarn=0;tone(500,0.3,'triangle',0.05,-300);hud()}}
   if(!p.moving)tryTunnel();
-  if(p.stay&&p.stay.length)p.stay=p.stay.filter(k=>held.includes(k));
+  if(p.stay&&p.stay.length){p.stay=p.stay.filter(k=>held.includes(k));p.stayT-=dt;if(p.stayT<=0)p.stay=[]}
   const d=curDir();
   if(p.moving){
     if(tunnelAt(p.x,p.y)>=0&&tunnelAt(p.tx,p.ty)<0&&p.prog>=0.5)p.tpLock=false;
@@ -1323,10 +1326,31 @@ function update(dt){
     if(now!==before&&now>0)tone(now<=2?1000:760,0.07,'square',0.04);
     if(endWait>END_TIME)levelClear()}
 }
+// Lag meter (G): frame times in the corner. Red bars are frames over 25ms (hiccups); a purple mark means the
+// Pilgrim stood still while a direction key was held and the way was open (a stop with no reason).
+let lagOn=false,lagCv=null,lagT=[],lagStats={worst:0,freezes:0,stops:0};
+function toggleLag(){lagOn=!lagOn;
+  if(!lagCv){lagCv=document.createElement('canvas');lagCv.width=480;lagCv.height=150;
+    Object.assign(lagCv.style,{position:'fixed',left:'8px',bottom:'8px',width:'240px',height:'75px',zIndex:50,pointerEvents:'none',borderRadius:'4px'});document.body.appendChild(lagCv)}
+  lagCv.hidden=!lagOn;lagT=[];lagStats={worst:0,freezes:0,stops:0}}
+function lagSample(raw){
+  const p=player;let stop=false;
+  if(state==='play'&&!introOpen&&p&&p.alive&&!p.moving&&held.length){const d=curDir(),[dx,dy]=DIRS[d];
+    stop=!blocked(p.x+dx,p.y+dy,false)&&!(p.stay&&p.stay.includes(d))}
+  if(raw>0){lagT.push([raw,stop]);if(lagT.length>120)lagT.shift();lagStats.worst=Math.max(lagStats.worst,raw);if(raw>25)lagStats.freezes++}
+  if(stop)lagStats.stops++;
+  const c=lagCv.getContext('2d'),W=480,H=150,top=40;c.clearRect(0,0,W,H);c.fillStyle='rgba(10,8,16,.8)';c.fillRect(0,0,W,H);
+  const y=ms=>H-Math.min(ms,100)/100*(H-top);
+  c.strokeStyle='rgba(255,255,255,.25)';c.lineWidth=1;for(const ms of [16.7,33.3]){c.beginPath();c.moveTo(0,y(ms));c.lineTo(W,y(ms));c.stroke()}
+  lagT.forEach(([ms,st],i)=>{const x=i*4;c.fillStyle=ms>25?'#ff4d5e':'#5fe0c8';c.fillRect(x,y(ms),3,H-y(ms));if(st){c.fillStyle='#c46bff';c.fillRect(x,top-6,3,6)}});
+  c.fillStyle='#f4ead8';c.font='20px monospace';c.textBaseline='top';
+  c.fillText(`worst ${lagStats.worst.toFixed(0)}ms  hiccups ${lagStats.freezes}  stops ${lagStats.stops}`,10,8)}
 function frame(ts){
-  const dt=Math.min(0.05,last?(ts-last)/1000:0);last=ts;time+=dt;
+  // After a hiccup the game catches up to 0.1s, in steps of at most 0.05s, so the Pilgrim doesn't seem to stop.
+  const raw=last?ts-last:0,dt=Math.min(0.1,raw/1000);last=ts;time+=dt;
   if(shake>0)shake-=dt;
-  if(state==='play'&&!introOpen)update(dt);
+  if(state==='play'&&!introOpen){const n=Math.ceil(dt/0.05)||1;for(let i=0;i<n&&state==='play';i++)update(dt/n)}
+  if(lagOn)lagSample(raw);
   else if(state==='finale'){const was=finaleT;finaleT+=dt;
     if(was<4&&finaleT>=4)[523,659,784,1046,1318].forEach((f,i)=>tone(f,0.5,'triangle',0.05,0,i*0.13));
     if(was<7.5&&finaleT>=7.5){tone(98,1.4,'sawtooth',0.04,-30);tone(147,1.2,'sine',0.03,-40,0.3)}}
@@ -1445,10 +1469,13 @@ function drawTilesStatic(){
     }
   }
 }
-let tileCache=null,tileKey='';
+let tileCache=null,tileKey=[];
+// The static layer is rebuilt only when the theme, size or map changes. The map check is a number hash, so it
+// makes no garbage each frame (a big joined string here used to feed the garbage collector).
+function gridHash(){let h=0;for(let y=0;y<ROWS;y++){const r=grid[y];for(let x=0;x<COLS;x++)h=(Math.imul(h,31)+(r[x]|0)+1)|0}return h}
 function drawTiles(){
-  const T=theme(),key=T.name+'|'+S+'|'+DPR+'|'+COLS+'|'+ROWS+'|'+grid.map(r=>r.join('')).join('');
-  if(key!==tileKey||!tileCache){tileKey=key;tileCache=tileCache||document.createElement('canvas');
+  const T=theme(),k=tileKey,h=gridHash();
+  if(!tileCache||k[0]!==T||k[1]!==S||k[2]!==DPR||k[3]!==COLS||k[4]!==ROWS||k[5]!==h){tileKey=[T,S,DPR,COLS,ROWS,h];tileCache=tileCache||document.createElement('canvas');
     tileCache.width=Math.ceil(COLS*S*DPR);tileCache.height=Math.ceil(ROWS*S*DPR);
     const oc=ctx;ctx=tileCache.getContext('2d');ctx.setTransform(DPR,0,0,DPR,0,0);try{drawTilesStatic()}finally{ctx=oc}}
   ctx.drawImage(tileCache,0,0,COLS*S,ROWS*S);
@@ -2325,6 +2352,7 @@ $('btnPause').onclick=()=>{if(state==='play')pause();else if(state==='pause')pri
 function toggleMusic(){music.on=!music.on;$('btnMusic').textContent=music.on?'Music on':'Music off';audio()}
 $('btnMusic').onclick=toggleMusic;
 addEventListener('keydown',e=>{if(e.target.tagName!=='INPUT'&&e.code==='KeyM'&&!e.repeat)toggleMusic()});
+addEventListener('keydown',e=>{if(e.target.tagName!=='INPUT'&&e.code==='KeyG'&&!e.repeat)toggleLag()});
 $('btnSong').onclick=()=>$('songFile').click();
 $('songFile').onchange=e=>{const f=e.target.files&&e.target.files[0];if(!f)return;
   const el=new Audio(URL.createObjectURL(f));useSong(el,f.name.replace(/\.[^.]+$/,''));audio()};
