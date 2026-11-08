@@ -1386,7 +1386,10 @@ function frame(ts){
     if(clearT>3.3&&!clearSwitched&&clearLevel===FINAL_LEVEL){clearSwitched=true;startFinale()}
     if(clearT>3.3&&!clearSwitched){clearSwitched=true;clearLevel=level;level++;startLevel();banner=0}
     if(clearT>5.5&&state==='clear'){state='play';banner=0;saveProgress();checkIntros()}}
-  if(player){const want=player.alive&&((state==='play'&&enemies&&!enemies.length)||(state==='clear'&&!clearSwitched))?1:0;
+  // Celebration pose: the arm goes up only while the Pilgrim stands still (after a short moment), and comes
+  // down smoothly as soon as he runs again.
+  if(player){player.stillT=player.moving?0:(player.stillT||0)+dt;
+    const want=player.alive&&player.stillT>0.2&&((state==='play'&&enemies&&!enemies.length)||(state==='clear'&&!clearSwitched))?1:0;
     player.cheer=(player.cheer||0)+(want-(player.cheer||0))*Math.min(1,dt*(want?5:12))}
   musicTick();tickIntro(dt);if(player&&player.fastT>0&&Math.ceil(player.fastT)!==player.fastShown){player.fastShown=Math.ceil(player.fastT);hud()}
   document.documentElement.classList.toggle('nocur',(state==='play'||state==='clear')&&performance.now()-lastMouse>1500);
