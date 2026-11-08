@@ -509,12 +509,12 @@ function askClear(){
   audio();resumeTo=state;
   if(state==='play')pause();
   showOverlay(`<h2>Delete all saved levels?</h2>
-    <p>This removes every saved level, your Continue point, your best score and the levels you've reached from this browser. It can't be undone.</p>
+    <p>This removes every saved level, your Continue point, your best score, the levels you've reached and your name from this browser. It can't be undone.</p>
     <div class="btns"><button class="go danger" id="delBtn" type="button">Delete all saved levels</button>
     <button class="go alt" id="keepBtn" type="button">Keep them</button></div>`);
-  $('delBtn').onclick=()=>{try{localStorage.removeItem(SLOTS_KEY);localStorage.removeItem(SAVE_KEY);localStorage.removeItem('fusewarren-best')}catch(e){}setReached(1);
-    best=0;renderSlots();hud();
-    showOverlay(`<h2>Saved levels deleted</h2><p>Everything is cleared. Your next game starts fresh from level 1.</p><button class="go" id="okBtn" type="button">OK</button>`);
+  $('delBtn').onclick=()=>{try{localStorage.removeItem(SLOTS_KEY);localStorage.removeItem(SAVE_KEY);localStorage.removeItem('fusewarren-best');localStorage.removeItem('mp-name')}catch(e){}setReached(1);
+    best=0;playerName='';updateName();renderSlots();hud();
+    showOverlay(`<h2>Saved levels deleted</h2><p>Everything is cleared. Your next game starts fresh from level 1 and asks for your name again.</p><button class="go" id="okBtn" type="button">OK</button>`);
     $('okBtn').onclick=backFromClear;$('okBtn').focus()};
   $('keepBtn').onclick=backFromClear;$('keepBtn').focus();
 }
