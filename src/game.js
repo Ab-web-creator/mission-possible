@@ -303,7 +303,7 @@ function applyMoment(M){const p=player;
   extraUsed=!!M.extraUsed;extraT=M.extraT||0;if(extraT>0)for(const e of enemies){e.letter=pickLetter();e.ltT=2.5}}
 function startLevel(L,M){
   if(!jumped)markReached(level);
-  trumpetWave=null;bombs=[];particles=[];shots=[];melts=[];coinFx=[];levelStartScore=score;
+  trumpetWave=null;jFires=[];bombs=[];particles=[];shots=[];melts=[];coinFx=[];levelStartScore=score;
   if(L&&L.g)applyLayout(L);else{COLS=17;ROWS=15;gen()}
   placeGiants();
   const sx=L&&L.g&&L.px||spawnX,sy=L&&L.g&&L.py||spawnY;calcBossMax();
@@ -797,10 +797,37 @@ function arrive(){
 const TRUMPET_FROM=3,TRUMPET_CHANCE=0.35,BOSS_TYPES=new Set(['giant','lion','idol']);let trumpetWave=null;
 function blowTrumpet(x,y){trumpetWave={x,y,r:0};shake=Math.max(shake,0.15);
   [392,523,659,784,1046].forEach((f,i)=>{tone(f,i===4?0.7:0.18,'sawtooth',0.045,0,i*0.12);tone(f*2,i===4?0.7:0.18,'triangle',0.02,0,i*0.12)})}
-function updateTrumpet(dt){const w=trumpetWave;if(!w)return;w.r+=10*dt;
+// Like the walls of Jericho, the wave also brings down every crate and stone wall it passes (the outer frame
+// stays), and leaves harmless fires burning in the rubble here and there. The fires are only a picture: they
+// don't hurt anyone and don't set off lamps.
+let jFires=[];
+function updateTrumpet(dt){
+  const [ppx,ppy]=player?rpos(player):[-9,-9];
+  for(const f of jFires){f.t-=dt;f.spark-=dt;
+    if(Math.abs(f.x-ppx)<0.9&&Math.abs(f.y-ppy)<0.9&&f.t>0.4)f.t=0.4;// the Pilgrim's spot stays clear: a fire there dies down
+    if(f.spark<=0&&f.t>0.3){f.spark=0.15+Math.random()*0.15;// a stray ember now and then
+      particles.push({x:f.x+0.35+Math.random()*0.3,y:f.y+0.1,vx:(Math.random()-.5)*0.5,vy:-(1.4+Math.random()),life:0.5,max:0.5,c:'#ffb347',r:0.05,g:-0.5})}}
+  jFires=jFires.filter(f=>f.t>0);
+  const w=trumpetWave;if(!w)return;w.r+=10*dt;
   for(const e of enemies){if(BOSS_TYPES.has(e.type)||e.dead||e.dying>0)continue;const [ex,ey]=rpos(e);
     if(Math.hypot(ex-w.x,ey-w.y)<=w.r){e.hp=1;e.inv=0;damageEnemy(e)}}
+  let fell=0;
+  for(let y=1;y<ROWS-1;y++)for(let x=1;x<COLS-1;x++){const c=grid[y][x];if(c!==CRATE&&c!==WALL)continue;
+    if(Math.hypot(x-w.x,y-w.y)>w.r)continue;fell++;
+    if(c===CRATE)breakCrate(x,y);else{grid[y][x]=EMPTY;burst(x,y,theme().w,7,3,0.11);burst(x,y,theme().hi,4,2.2,0.07)}
+    if(Math.random()<0.3&&Math.hypot(x-ppx,y-ppy)>1.5)jFires.push({x,y,t:1.6+Math.random()*1.4,max:0,ph:Math.random()*9,spark:Math.random()*0.2})}
+  if(fell){shake=Math.max(shake,0.12);w.rumble=(w.rumble||0)-dt;
+    if(w.rumble<=0){w.rumble=0.09;if(ac&&!muted&&noiseBuf)noiseHit(ac.currentTime,0.25,'lowpass',260,700,0.09,0.7)}}
   if(w.r>Math.hypot(COLS,ROWS))trumpetWave=null}
+function drawJFires(){if(!jFires.length)return;
+  ctx.save();
+  for(const f of jFires){if(!f.max)f.max=f.t;
+    const grow=Math.min(1,(f.max-f.t)/0.25,f.t/0.5),cx=(f.x+.5)*S,base=(f.y+.85)*S,h=S*1.15*grow,N=12;
+    ctx.globalAlpha=0.9*Math.min(1,grow*1.5);
+    for(let i=N-1;i>=0;i--){const k=i/N,d=k*h,w=S*(0.3-0.22*k)*(0.85+0.25*Math.sin(time*30+i*1.7+f.ph))*Math.max(0.35,grow),
+      j=Math.sin(time*18+i*0.9+f.ph)*S*0.07*k;
+      ctx.fillStyle=k<0.25?'#fff2b0':k<0.6?'#ffb03a':'#ff5a2a';ctx.beginPath();ctx.arc(cx+j,base-d,w,0,Math.PI*2);ctx.fill()}}
+  ctx.restore()}
 function drawTrumpetWave(){const w=trumpetWave;if(!w)return;const cx=(w.x+.5)*S,cy=(w.y+.5)*S,R=w.r*S,fade=Math.max(0,1-w.r/Math.hypot(COLS,ROWS));
   ctx.save();ctx.globalCompositeOperation='lighter';
   const g=ctx.createRadialGradient(cx,cy,Math.max(0,R-S*0.9),cx,cy,R);g.addColorStop(0,'rgba(255,230,150,0)');g.addColorStop(0.8,`rgba(255,236,170,${0.35*fade})`);g.addColorStop(1,'rgba(255,240,190,0)');
@@ -2153,7 +2180,7 @@ function draw(){
   for(const k in items)drawItem(k,items[k]);
   for(const b of bombs)drawBomb(b);
   drawTrumpetWave();
-  drawFlames();
+  drawFlames();drawJFires();
   for(const e of enemies){if(e.dying>0){const k=e.dying/DIE_TIME,[rx,ry]=rpos(e),cx=(rx+.5)*S,cy=(ry+.5)*S;
     ctx.save();ctx.globalAlpha=Math.min(1,k*1.4);ctx.translate(cx,cy+(1-k)*S*0.15);ctx.rotate((1-k)*(e.wob%2>1?0.6:-0.6));ctx.scale(0.35+0.65*k,0.35+0.65*k*(0.8+0.2*k));ctx.translate(-cx,-cy);
     drawEnemy({...e,inv:Math.sin(time*40)>0?0.1:0,moving:false,windup:0});ctx.restore();
@@ -2269,8 +2296,8 @@ function hud(){
   $('hLevel').textContent=level;$('hScore').textContent=score;$('hBest').textContent=Math.max(best,score);
   $('hLives').textContent=Math.max(0,lives);
   if(!player)return;
-  $('kBombs').textContent=player.bombs;$('kFire').textContent=player.fire;$('kFuse').textContent=(player.fuse||BASE_FUSE).toFixed(1)+'s';
-  $('kSpeed').textContent=player.fastT>0?'FAST '+Math.ceil(player.fastT)+'s':Math.round((player.speed-3.6)/SPEED_STEP)+1;
+  $('kBombs').textContent=player.bombs;$('kFire').textContent=player.fire;$('kFuse').textContent=(player.fuse||BASE_FUSE).toFixed(1);
+  $('kSpeed').textContent=player.fastT>0?'FAST '+Math.ceil(player.fastT)+'s':Math.round((player.speed-3.6)/SPEED_STEP)+1;$('kSpeed').classList.toggle('fast',player.fastT>0);
   renderHearts();
   $('extraRow').classList.toggle('live',extraT>0);
   [...$('extraRow').children].forEach(sp=>sp.classList.toggle('got',letters.has(sp.textContent)));

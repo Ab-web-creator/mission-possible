@@ -61,10 +61,11 @@ div.fg{display:flex;gap:20px;align-items:center;padding:14px 0;border-bottom:1px
 .lbl{font-family:var(--pixel);font-size:.9rem;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
 .stat b{font-family:var(--pixel);font-size:1.5rem;font-weight:400}
 
-.kit{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.kit{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 
-.chip{display:flex;justify-content:space-between;gap:8px;font-family:var(--pixel);font-size:1rem;letter-spacing:.06em;padding:5px 13px;border:1px solid var(--line);border-radius:3px;color:var(--dim);font-variant-numeric:tabular-nums}
-.chip b{color:var(--ink);font-weight:400}
+.chip{display:flex;justify-content:space-between;align-items:center;gap:8px;font-family:var(--body);font-weight:600;text-transform:uppercase;font-size:1.1rem;letter-spacing:.05em;padding:7px 14px;border:1px solid var(--line);border-radius:3px;color:var(--ink);font-variant-numeric:tabular-nums}
+.chip b{color:#ffd84a;font-weight:700;font-size:1.85rem;letter-spacing:.02em;text-transform:none;white-space:nowrap;line-height:1;text-shadow:0 0 10px rgba(255,216,74,.35)}
+.chip b.fast{font-size:1.25rem}
 .chip.on{border-color:var(--cyan);color:var(--cyan)}
 .chip.on b{color:var(--cyan)}
 .chip.warn{border-color:#ffc428;color:#ffc428;animation:blink .5s steps(2) infinite}
@@ -80,7 +81,7 @@ button:focus-visible,select:focus-visible{outline:2px solid var(--amber);outline
 @container (max-width:290px){
   .brand{font-size:1.4rem}.lvlbig{font-size:3.1rem}.livesbadge b{font-size:1.15rem}
   .extra span{font-size:1.05rem}
-  .chip{font-size:.85rem;padding:4px 10px}
+  .chip{font-size:.95rem;padding:5px 10px}.chip b{font-size:1.35rem}
   .stat b{font-size:1.2rem}.lbl{font-size:.75rem}.stats{padding:10px 12px;gap:7px}
   .mini{font-size:.78rem;padding:8px 6px}
   .slot b{font-size:.85rem}.slot span{font-size:.75rem}
@@ -138,9 +139,10 @@ html.nocur,html.nocur *{cursor:none!important}
 .hearts-row .bg{fill:#2e2540;stroke:#4a3e62;stroke-width:1.2}
 .hearts-row .fg{fill:#ff3d6e}
 .hearts-row.low .fg{animation:blink .5s steps(2) infinite}
-.livesbadge{font-family:var(--pixel);font-size:1rem;color:var(--ink);white-space:nowrap;display:flex;align-items:center;gap:6px}
-.livesbadge b{font-weight:400;font-size:1.4rem}
-.livesbadge .lbl{font-size:.75rem}
+.livesbadge{font-family:var(--pixel);font-size:1rem;color:var(--ink);white-space:nowrap;display:flex;align-items:baseline;gap:6px}
+.livesbadge b{font-family:var(--body);font-weight:400;font-size:2.4rem;line-height:1;color:#ff3d6e}
+.livesbadge .lbl{font-family:var(--body);font-weight:400;font-size:1.75rem;line-height:1;letter-spacing:0;text-transform:none}
+.livesbadge{gap:10px}
 .extra{display:flex;justify-content:space-between;gap:4px;padding:2px 2px}
 .extra span{--c:#888;flex:0 1 46px;min-width:0;max-width:46px;aspect-ratio:1;height:auto;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-size:1.45rem;line-height:1;padding-top:3px;
   color:#3a3050;border:2px dashed #3d3352;background:transparent;transition:transform .2s}
@@ -148,8 +150,8 @@ html.nocur,html.nocur *{cursor:none!important}
 .extra span.got{color:#fff;border:2px solid rgba(255,255,255,.55);text-shadow:0 2px 0 rgba(0,0,0,.45);
   background:radial-gradient(ellipse 22% 12% at 27% 20%,rgba(255,255,255,.85) 0 60%,transparent 100%),radial-gradient(circle at 50% 45%,var(--c) 0 55%,color-mix(in srgb,var(--c) 55%,#000) 100%);
   box-shadow:0 0 12px color-mix(in srgb,var(--c) 60%,transparent);animation:pop .35s ease-out}
-.extra.live span:not(.got){border:2px dashed var(--c);color:var(--c);background:color-mix(in srgb,var(--c) 12%,transparent)}
-.extra span.avail:not(.got){border:2px dashed var(--c);color:var(--c);background:color-mix(in srgb,var(--c) 22%,transparent);animation:pulse 1s ease-in-out infinite}
+.extra.live span:not(.got){border:2px dashed var(--c);color:var(--c);background:color-mix(in srgb,var(--c) 10%,transparent);opacity:.4}
+.extra span.avail:not(.got){border:2px dashed var(--c);color:var(--c);background:color-mix(in srgb,var(--c) 22%,transparent);opacity:1;animation:pulse 1s ease-in-out infinite}
 .extra span{position:relative}
 .extra span.got::after{content:'✓';position:absolute;right:-4px;bottom:-4px;width:44%;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;background:#2fbf5b;color:#fff;border:2px solid var(--bg);font-family:var(--body);font-weight:600;font-size:.6em;line-height:1;text-shadow:none}
 @keyframes pop{0%{transform:scale(.4)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
