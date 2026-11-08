@@ -491,7 +491,7 @@ function jumpDialog(){
     <label class="sec" for="jumpNum">Level number (1–50)</label>
     <input id="jumpNum" type="number" min="1" max="50" step="1" inputmode="numeric" value="${level}" autocomplete="off">
     <div class="btns"><button class="go" id="jumpOk" type="button">Jump</button></div>`);
-  const inp=$('jumpNum');inp.focus();inp.select();
+  $('card').classList.add('jumpcard');  const inp=$('jumpNum');inp.focus();inp.select();
   const ok=()=>{const n=Math.max(1,Math.min(FINAL_LEVEL,Math.floor(+inp.value)||1));
     audio();if(!playerName){askName(()=>startAt(n,true));return}startAt(n,true)};
   $('jumpOk').onclick=ok;
@@ -2304,10 +2304,11 @@ addEventListener('keydown',e=>{
     else if(state!=='play'&&state!=='clear')primary();
     return}
   if(e.code==='KeyP'||e.code==='Escape'){e.preventDefault();if(state==='pick')closePicker();else if(state==='play')pause();else if(state==='pause')primary()}
-  if(e.code==='KeyN'&&!e.repeat&&state==='pick'&&performance.now()-lKeyAt<1500){e.preventDefault();lKeyAt=0;jumpDialog();return}
   if(e.code==='KeyL'&&!e.repeat){e.preventDefault();if(state==='pick')closePicker();else{levelPicker();lKeyAt=performance.now()}}
 });
 let lKeyAt=0;
+// Capture phase: the picker focuses its level dropdown, which stops key events from bubbling up to the handler above.
+addEventListener('keydown',e=>{if(e.code==='KeyN'&&!e.repeat&&state==='pick'&&performance.now()-lKeyAt<1500){e.preventDefault();e.stopPropagation();lKeyAt=0;jumpDialog()}},true);
 let bombHeld=false,pendingBomb=false;
 addEventListener('keyup',e=>{if(e.code==='Space'||e.code==='KeyX')bombHeld=false;const d=KEYMAP[e.code];if(d){const i=held.indexOf(d);if(i>=0)held.splice(i,1)}});
 addEventListener('blur',()=>{held.length=0;bombHeld=false;pause()});

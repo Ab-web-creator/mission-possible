@@ -10,6 +10,6 @@ export const INTRO={31:{type:'suspect',desc:'Slow, but it watches behind its bac
              34:{type:'lies',desc:'Alone it barely hurts, especially if you don’t believe it. But lies bring worse troubles with them.'},
              29:{type:'theft',desc:'It snatches power-ups and coins, and steals your lamps.'},
              23:{type:'wisp',desc:'It seeps through every wall.'},
-             48:{type:'temper',desc:'It stops and breathes fire at you, but only a few steps far. Keep your distance!'},
+             48:{type:'gossip',desc:'Slow, but it watches ahead and to both sides. Come within three steps and it sprays words at you. Keep your distance!'},
              47:{type:'critic',desc:'Slow, but it sees every side, turns at once and fires an endless stream of cold remarks.'},
              41:{type:'murder',desc:'It creeps slowly, but when it sees you it swoops straight at you. Step aside!'}};

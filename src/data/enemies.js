@@ -15,7 +15,7 @@ export const ETYPES={
   greed:  {name:'Greed', speed:3.78,hp:1, pts:450, dmg:2, ai:'hunt', avoid:false, ghost:false, col:'#d4b030'},
   murder: {name:'Murder',speed:1.1, hp:1, pts:600, dmg:3, ai:'pace', range:99, avoid:true, ghost:false, col:'#c0182e'},
   critic: {name:'Criticism', speed:0.8, hp:1, pts:500, dmg:1, ai:'wander', avoid:false, ghost:false, col:'#dfe7ef', shoot:'stream', cd:0.13, sdmg:1, range:99},
-  gossip: {name:'Gossip', speed:0.85,hp:1, pts:500, dmg:1, ai:'wander', avoid:false, ghost:false, col:'#d9559e', shoot:'spray', sdmg:1, range:2, sight:3, follow:7},
+  gossip: {name:'Gossip', speed:0.85,hp:1, pts:500, dmg:1, ai:'wander', avoid:false, ghost:false, col:'#d9559e', shoot:'spray', sdmg:1, range:3, sight:3, follow:7},
   temper: {name:'Temper', speed:1.0, hp:1, pts:450, dmg:2, ai:'wander', avoid:false, ghost:false, col:'#e8584a', shoot:'flame', sdmg:1, range:3},
   brute:  {name:'Hatred',  speed:1.35,hp:1, pts:500, dmg:4, ai:'chase', range:10, avoid:true, ghost:false, col:'#7fa845'}
 };
