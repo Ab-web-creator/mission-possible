@@ -302,6 +302,7 @@ function applyMoment(M){const p=player;
   Object.assign(p,{shield:Math.max(2,M.shield||0),shieldPick:!!M.shieldPick,fastT:M.fastT||0,hurtT:M.hurtT||0,face:M.face||'down'});
   extraUsed=!!M.extraUsed;extraT=M.extraT||0;if(extraT>0)for(const e of enemies){e.letter=pickLetter();e.ltT=2.5}}
 function startLevel(L,M){
+  markReached(level);
   trumpetWave=null;bombs=[];particles=[];shots=[];melts=[];coinFx=[];levelStartScore=score;
   if(L&&L.g)applyLayout(L);else{COLS=17;ROWS=15;gen()}
   placeGiants();
@@ -324,6 +325,18 @@ const LAYOUT_V=3;
 try{if(!localStorage.getItem('mp-noauto')){const sl=JSON.parse(localStorage.getItem('fusewarren-levels')||'{}')||{};
   for(const k in sl)if(k[0]!=='m')delete sl[k];localStorage.setItem('fusewarren-levels',JSON.stringify(sl));localStorage.removeItem('fusewarren-save');localStorage.setItem('mp-noauto','1')}}catch(e){}
 function loadSlots(){try{return JSON.parse(localStorage.getItem(SLOTS_KEY)||'{}')||{}}catch(e){return {}}}
+// Highest level reached: the level picker only offers levels up to this one. Losing every life resets it to 1.
+// Players from before this existed get it seeded from their saves and last picked level.
+const REACH_KEY='mp-reached';
+function reachedLevel(){
+  let n=0;try{n=+localStorage.getItem(REACH_KEY)||0}catch(e){}
+  if(!n){n=1;const sv=loadSave();if(sv)n=Math.max(n,sv.max||0,sv.level||0);
+    for(const sl of Object.values(loadSlots()))n=Math.max(n,+sl.level||0);
+    try{n=Math.max(n,+localStorage.getItem('mp-pick')||0);localStorage.setItem(REACH_KEY,n)}catch(e){}}
+  return Math.min(50,Math.max(1,n));
+}
+function setReached(n){try{localStorage.setItem(REACH_KEY,n)}catch(e){}}
+function markReached(n){if(n>reachedLevel())setReached(n)}
 function snapshot(){return{level,score,lives,letters:[...letters],bombs:player.bombs,fire:player.fire,speed:player.speed,fuse:player.fuse||BASE_FUSE,hp:player.hp,layout:curLayout,v:LAYOUT_V,when:Date.now()}}
 function saveProgress(){}
 function saveProgressOld(){
@@ -438,7 +451,7 @@ function loadSlot(n){
   player=makePlayer();Object.assign(player,{bombs:sl.bombs||BASE_BOMBS,fire:sl.fire||BASE_FIRE,speed:sl.speed||3.6,fuse:sl.fuse||BASE_FUSE,hp:Math.min(MAX_HP,sl.hp||MAX_HP)});
   music.lastLevel=-1;beginPlay(sl.v===LAYOUT_V?sl.layout:null,sl.v===LAYOUT_V&&sl.moment);return true;
 }
-function startAt(n){n=Math.max(1,Math.min(FINAL_LEVEL,Math.floor(+n)||1));try{localStorage.setItem('mp-pick',n)}catch(e){}level=n;score=0;lives=3;letters=new Set();player=makePlayer();music.lastLevel=-1;beginPlay()}
+function startAt(n){n=Math.max(1,Math.min(reachedLevel(),Math.floor(+n)||1));try{localStorage.setItem('mp-pick',n)}catch(e){}level=n;score=0;lives=3;letters=new Set();player=makePlayer();music.lastLevel=-1;beginPlay()}
 function pickedLevel(){const i=$('lvlNum');if(i)return i.value;const b=$('goBtn');return b&&b.dataset.l||lastPick()}
 function continueGame(){
   const sv=loadSave();if(!sv)return newGame();
@@ -448,23 +461,24 @@ function continueGame(){
   beginPlay();
 }
 function slotLine(sl){return '<i class="hearts">'+'♥'.repeat(Math.min(sl.lives,5))+(sl.lives>5?'+':'')+'</i> · Lamps '+sl.bombs+' · Reach '+sl.fire}
-function lastPick(){let n=1;try{n=+localStorage.getItem('mp-pick')||1}catch(e){}return Math.min(50,Math.max(1,n))}
-function startBlock(fresh){
-  const n=fresh?level:lastPick();
-  return `<div class="startrow"><button class="go big" id="goBtn" type="button" data-l="${n}">${fresh?'Play level '+n+' again':'Start level '+n}</button></div>`;
+function lastPick(){let n=1;try{n=+localStorage.getItem('mp-pick')||1}catch(e){}return Math.min(reachedLevel(),Math.max(1,n))}
+function startBlock(over){
+  const n=over?1:lastPick();
+  return `<div class="startrow"><button class="go big" id="goBtn" type="button" data-l="${n}">${over?'Start again at level 1':'Start level '+n}</button></div>`;
 }
 let pickFrom=null,pickHTML='';
 function levelPicker(){
   if(introOpen||!['title','over','play','pause'].includes(state))return;
   audio();pickFrom=state;pickHTML=state==='play'?'':$('card').innerHTML;state='pick';held.length=0;bombHeld=false;
-  const last=pickFrom==='over'?level:lastPick(),has=slotKeys(loadSlots()).length;
+  const last=pickFrom==='over'?1:lastPick(),has=slotKeys(loadSlots()).length;
   showOverlay(`<h2>Choose a level</h2>
     <div class="btns">
       <div class="pick"><label class="sec" for="lvlNum">Start at level</label>
-        <select id="lvlNum">${Array.from({length:50},(_,i)=>i+1).map(n=>`<option value="${n}"${n===last?' selected':''}>Level ${n}${n%10===0?' \u00b7 Boss':INTRO[n]?' \u00b7 new demon':''}</option>`).join('')}</select>
+        <select id="lvlNum">${Array.from({length:reachedLevel()},(_,i)=>i+1).map(n=>`<option value="${n}"${n===last?' selected':''}>Level ${n}${n%10===0?' \u00b7 Boss':INTRO[n]?' \u00b7 new demon':''}</option>`).join('')}</select>
         <button class="go" id="goBtn" type="button" style="padding:8px 16px">Start</button></div>
       ${has?`<div class="pick"><label class="sec" for="lvlPick">Or load a saved game</label>${slotSelect()}<button class="go alt" id="pickBtn" type="button" style="padding:8px 14px">Load</button></div>`:''}
     </div>
+    ${reachedLevel()<50?'<p class="muted">Levels open up here as you reach them. Losing all your lives closes them again.</p>':''}
     ${pickFrom==='play'||pickFrom==='pause'?'<p class="muted">Starting another level ends the game you are playing now.</p>':''}
     <button class="go alt" id="pickCancel" type="button">Back <span class="sec">Esc</span></button>`);
   $('pickCancel').onclick=closePicker;wireSave();$('lvlNum').focus();
@@ -495,10 +509,10 @@ function askClear(){
   audio();resumeTo=state;
   if(state==='play')pause();
   showOverlay(`<h2>Delete all saved levels?</h2>
-    <p>This removes every saved level, your Continue point and your best score from this browser. It can't be undone.</p>
+    <p>This removes every saved level, your Continue point, your best score and the levels you've reached from this browser. It can't be undone.</p>
     <div class="btns"><button class="go danger" id="delBtn" type="button">Delete all saved levels</button>
     <button class="go alt" id="keepBtn" type="button">Keep them</button></div>`);
-  $('delBtn').onclick=()=>{try{localStorage.removeItem(SLOTS_KEY);localStorage.removeItem(SAVE_KEY);localStorage.removeItem('fusewarren-best')}catch(e){}
+  $('delBtn').onclick=()=>{try{localStorage.removeItem(SLOTS_KEY);localStorage.removeItem(SAVE_KEY);localStorage.removeItem('fusewarren-best')}catch(e){}setReached(1);
     best=0;renderSlots();hud();
     showOverlay(`<h2>Saved levels deleted</h2><p>Everything is cleared. Your next game starts fresh from level 1.</p><button class="go" id="okBtn" type="button">OK</button>`);
     $('okBtn').onclick=backFromClear;$('okBtn').focus()};
@@ -853,11 +867,13 @@ function gainLetter(l,x,y){
 }
 function gameOver(){
   state='over';
-  {const sv=loadSave();if(sv){Object.assign(sv,{lives:3,hp:MAX_HP,bombs:BASE_BOMBS,fire:BASE_FIRE,speed:3.6,score:0});writeSave(sv)}}
+  // Out of lives: the levels are lost too, so the next game starts back at level 1.
+  {const sv=loadSave();if(sv){Object.assign(sv,{level:1,lives:3,hp:MAX_HP,bombs:BASE_BOMBS,fire:BASE_FIRE,speed:3.6,score:0,letters:[]});writeSave(sv)}}
+  try{localStorage.setItem('mp-pick',1)}catch(e){}setReached(1);
   const newBest=score>best;if(newBest){best=score;try{localStorage.setItem('fusewarren-best',best)}catch(e){}}
   hud();
   showOverlay(`<h2 class="overh">Out of lives</h2>
-    <p>You reached level ${level}.</p>
+    <p>You reached level ${level}. Your journey starts again from level 1.</p>
     <div class="legend scores"><div><span class="sec">Score</span></div><div><span class="big">${score}</span></div>
     <div><span class="sec">Best</span></div><div><span class="big">${best}</span>${newBest?' <span class="sec" style="color:var(--amber)">new</span>':''}</div></div>
     ${startBlock(true)}`);
