@@ -302,7 +302,7 @@ function applyMoment(M){const p=player;
   Object.assign(p,{shield:Math.max(2,M.shield||0),shieldPick:!!M.shieldPick,fastT:M.fastT||0,hurtT:M.hurtT||0,face:M.face||'down'});
   extraUsed=!!M.extraUsed;extraT=M.extraT||0;if(extraT>0)for(const e of enemies){e.letter=pickLetter();e.ltT=2.5}}
 function startLevel(L,M){
-  markReached(level);
+  if(!jumped)markReached(level);
   trumpetWave=null;bombs=[];particles=[];shots=[];melts=[];coinFx=[];levelStartScore=score;
   if(L&&L.g)applyLayout(L);else{COLS=17;ROWS=15;gen()}
   placeGiants();
@@ -337,6 +337,7 @@ function reachedLevel(){
 }
 function setReached(n){try{localStorage.setItem(REACH_KEY,n)}catch(e){}}
 function markReached(n){if(n>reachedLevel())setReached(n)}
+let jumped=false; // true while playing a run started with the L-N jump: it doesn't open levels in the picker
 function snapshot(){return{level,score,lives,letters:[...letters],bombs:player.bombs,fire:player.fire,speed:player.speed,fuse:player.fuse||BASE_FUSE,hp:player.hp,layout:curLayout,v:LAYOUT_V,when:Date.now()}}
 function saveProgress(){}
 function saveProgressOld(){
@@ -444,14 +445,14 @@ function askName(after){
   $('nameOk').onclick=ok;inp.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();ok()}});
 }
 function beginPlay(L,M){startLevel(L,M);state='play';hideOverlay();hud();saveProgress();checkIntros()}
-function newGame(){level=1;score=0;lives=3;letters=new Set();player=makePlayer();beginPlay()}
+function newGame(){jumped=false;level=1;score=0;lives=3;letters=new Set();player=makePlayer();beginPlay()}
 function loadSlot(n){
-  const sl=loadSlots()[n];if(!sl)return false;
+  const sl=loadSlots()[n];if(!sl)return false;jumped=false;
   level=sl.level;score=sl.score||0;lives=Math.max(1,sl.lives||3);letters=new Set((sl.letters||[]).filter(c=>LETTERS.includes(c)));
   player=makePlayer();Object.assign(player,{bombs:sl.bombs||BASE_BOMBS,fire:sl.fire||BASE_FIRE,speed:sl.speed||3.6,fuse:sl.fuse||BASE_FUSE,hp:Math.min(MAX_HP,sl.hp||MAX_HP)});
   music.lastLevel=-1;beginPlay(sl.v===LAYOUT_V?sl.layout:null,sl.v===LAYOUT_V&&sl.moment);return true;
 }
-function startAt(n){n=Math.max(1,Math.min(reachedLevel(),Math.floor(+n)||1));try{localStorage.setItem('mp-pick',n)}catch(e){}level=n;score=0;lives=3;letters=new Set();player=makePlayer();music.lastLevel=-1;beginPlay()}
+function startAt(n,any){jumped=!!any;n=Math.max(1,Math.min(any?FINAL_LEVEL:reachedLevel(),Math.floor(+n)||1));try{localStorage.setItem('mp-pick',n)}catch(e){}level=n;score=0;lives=3;letters=new Set();player=makePlayer();music.lastLevel=-1;beginPlay()}
 function pickedLevel(){const i=$('lvlNum');if(i)return i.value;const b=$('goBtn');return b&&b.dataset.l||lastPick()}
 function continueGame(){
   const sv=loadSave();if(!sv)return newGame();
@@ -482,6 +483,19 @@ function levelPicker(){
     ${pickFrom==='play'||pickFrom==='pause'?'<p class="muted">Starting another level ends the game you are playing now.</p>':''}
     <button class="go alt" id="pickCancel" type="button">Back <span class="sec">Esc</span></button>`);
   $('pickCancel').onclick=closePicker;wireSave();$('lvlNum').focus();
+}
+// Hidden jump: press L (opens the picker) then N within a moment to type any level, reached or not.
+function jumpDialog(){
+  if(state!=='pick')return;
+  showOverlay(`<h2>Jump to a level</h2>
+    <label class="sec" for="jumpNum">Level number (1–50)</label>
+    <input id="jumpNum" type="number" min="1" max="50" step="1" inputmode="numeric" value="${level}" autocomplete="off">
+    <div class="btns"><button class="go" id="jumpOk" type="button">Jump</button></div>`);
+  const inp=$('jumpNum');inp.focus();inp.select();
+  const ok=()=>{const n=Math.max(1,Math.min(FINAL_LEVEL,Math.floor(+inp.value)||1));
+    audio();if(!playerName){askName(()=>startAt(n,true));return}startAt(n,true)};
+  $('jumpOk').onclick=ok;
+  inp.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();ok()}});
 }
 function closePicker(){
   if(state!=='pick')return;state=pickFrom;
@@ -2290,8 +2304,10 @@ addEventListener('keydown',e=>{
     else if(state!=='play'&&state!=='clear')primary();
     return}
   if(e.code==='KeyP'||e.code==='Escape'){e.preventDefault();if(state==='pick')closePicker();else if(state==='play')pause();else if(state==='pause')primary()}
-  if(e.code==='KeyL'&&!e.repeat){e.preventDefault();if(state==='pick')closePicker();else levelPicker()}
+  if(e.code==='KeyN'&&!e.repeat&&state==='pick'&&performance.now()-lKeyAt<1500){e.preventDefault();lKeyAt=0;jumpDialog();return}
+  if(e.code==='KeyL'&&!e.repeat){e.preventDefault();if(state==='pick')closePicker();else{levelPicker();lKeyAt=performance.now()}}
 });
+let lKeyAt=0;
 let bombHeld=false,pendingBomb=false;
 addEventListener('keyup',e=>{if(e.code==='Space'||e.code==='KeyX')bombHeld=false;const d=KEYMAP[e.code];if(d){const i=held.indexOf(d);if(i>=0)held.splice(i,1)}});
 addEventListener('blur',()=>{held.length=0;bombHeld=false;pause()});

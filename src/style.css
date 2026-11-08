@@ -122,8 +122,8 @@ canvas{display:block;flex:none;will-change:transform;border-radius:4px}
 #lvlNum{flex:1;min-width:0;max-width:16em;font-family:var(--pixel);font-size:1rem;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:7px 6px}
 #lvlNum:focus{outline:2px solid var(--amber);outline-offset:-1px}
 .pick .lvq{padding:7px 10px}
-#saveName{font:inherit;font-size:1.05rem;padding:10px 12px;border-radius:4px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
-#saveName:focus{outline:2px solid var(--amber);outline-offset:-1px}
+#saveName,#jumpNum{font:inherit;font-size:1.05rem;padding:10px 12px;border-radius:4px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
+#saveName:focus,#jumpNum:focus{outline:2px solid var(--amber);outline-offset:-1px}
 .slot span{font-size:.82rem;color:var(--dim)}
 .hearts{font-style:normal;color:var(--rose)}
 .slot:hover{border-color:var(--amber)}
