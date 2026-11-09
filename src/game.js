@@ -853,14 +853,22 @@ function updateTrumpet(dt){
   if(fell){shake=Math.max(shake,0.32);w.rumble=(w.rumble||0)-dt;
     if(w.rumble<=0){w.rumble=0.08;if(ac&&!muted&&noiseBuf){const t=ac.currentTime;noiseHit(t,0.3,'lowpass',320,700,0.14,0.7);if(Math.random()<0.5)noiseHit(t,0.12,'bandpass',900+Math.random()*1500,300,0.08,1.5)}}}
   if(w.r>Math.hypot(COLS,ROWS))trumpetWave=null}
-function drawJFires(){if(!jFires.length)return;
+function drawJFires(){if(!jFires.length)return;// a few flickering tongues of flame in the rubble
   ctx.save();
   for(const f of jFires){if(!f.max)f.max=f.t;
-    const grow=Math.min(1,(f.max-f.t)/0.25,f.t/0.5),cx=(f.x+.5)*S,base=(f.y+.85)*S,h=S*1.15*grow,N=12;
-    ctx.globalAlpha=0.9*Math.min(1,grow*1.5);
-    for(let i=N-1;i>=0;i--){const k=i/N,d=k*h,w=S*(0.3-0.22*k)*(0.85+0.25*Math.sin(time*30+i*1.7+f.ph))*Math.max(0.35,grow),
-      j=Math.sin(time*18+i*0.9+f.ph)*S*0.07*k;
-      ctx.fillStyle=k<0.25?'#fff2b0':k<0.6?'#ffb03a':'#ff5a2a';ctx.beginPath();ctx.arc(cx+j,base-d,w,0,Math.PI*2);ctx.fill()}}
+    const grow=Math.min(1,(f.max-f.t)/0.3,f.t/0.6);if(grow<=0)continue;
+    const cx=(f.x+.5)*S,base=(f.y+.86)*S;ctx.globalAlpha=Math.min(1,grow*1.5);
+    for(const [ox,hk,wk,ph] of [[-0.16,0.5,0.15,0],[0.16,0.56,0.15,2.1],[0,0.9,0.21,4.2]]){
+      const fl=0.86+0.14*Math.sin(time*13+ph+f.ph)+0.07*Math.sin(time*29+ph*1.7+f.ph),
+        h=S*hk*grow*fl,w=S*wk*Math.max(0.45,grow),sw=Math.sin(time*9+ph+f.ph)*S*0.06*grow,x=cx+ox*S;
+      const al=ctx.globalAlpha;ctx.globalCompositeOperation='lighter';// a soft glow in the shape of the flame, not a round halo
+      for(const [kw,kh,c] of [[2.2,1.3,'rgba(255,110,30,.13)'],[1.65,1.16,'rgba(255,140,40,.16)'],[1.3,1.07,'rgba(255,170,60,.18)']]){
+        ctx.fillStyle=c;flamePath(x,base+S*0.04,w*kw,h*kh,sw*1.1);ctx.fill()}
+      ctx.globalCompositeOperation='source-over';ctx.globalAlpha=al;
+      ctx.fillStyle='#e8401c';flamePath(x,base,w,h,sw);ctx.fill();
+      ctx.fillStyle='#ff8f24';flamePath(x,base-S*0.01,w*0.72,h*0.78,sw*0.8);ctx.fill();
+      ctx.fillStyle='#ffd96e';flamePath(x,base-S*0.02,w*0.42,h*0.5,sw*0.6);ctx.fill();
+      ctx.fillStyle='#fff6cf';flamePath(x,base-S*0.02,w*0.2,h*0.26,sw*0.4);ctx.fill()}}
   ctx.restore()}
 function drawTrumpetWave(){const w=trumpetWave;if(!w||w.wait>0)return;const cx=(w.x+.5)*S,cy=(w.y+.5)*S,R=w.r*S,fade=Math.max(0,1-w.r/Math.hypot(COLS,ROWS));
   ctx.save();ctx.globalCompositeOperation='lighter';
