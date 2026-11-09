@@ -795,8 +795,29 @@ function arrive(){
 // Trumpet of Jericho: rare (at most one per level, from level 3, never on boss levels). Picking it up sends a
 // golden wave across the board that defeats every demon it reaches, except the bosses.
 const TRUMPET_FROM=3,TRUMPET_CHANCE=0.35,BOSS_TYPES=new Set(['giant','lion','idol']);let trumpetWave=null;
-function blowTrumpet(x,y){trumpetWave={x,y,r:0};shake=Math.max(shake,0.15);
-  [392,523,659,784,1046].forEach((f,i)=>{tone(f,i===4?0.7:0.18,'sawtooth',0.045,0,i*0.12);tone(f*2,i===4?0.7:0.18,'triangle',0.02,0,i*0.12)})}
+// First the horn sounds one long blast (HORN_TIME); only when it ends does the wave set off and the walls fall.
+const HORN_TIME=2.3;
+function blowTrumpet(x,y){trumpetWave={x,y,r:0,wait:HORN_TIME};shofar()}
+// A ram's horn: a breathy, buzzing low note that scoops up, wavers as it is held, then breaks up to the fifth.
+function shofar(){if(!ac||muted)return;const t=ac.currentTime,end=t+HORN_TIME-0.05,f0=196,brk=t+HORN_TIME-0.65;
+  const lp=ac.createBiquadFilter();lp.type='lowpass';lp.Q.value=4;lp.frequency.setValueAtTime(500,t);lp.frequency.linearRampToValueAtTime(1600,t+0.35);
+  lp.frequency.setValueAtTime(1500,brk);lp.frequency.linearRampToValueAtTime(2600,brk+0.12);
+  const g=ac.createGain();g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.11,t+0.12);g.gain.linearRampToValueAtTime(0.085,brk-0.05);
+  g.gain.linearRampToValueAtTime(0.12,brk+0.08);g.gain.setValueAtTime(0.12,end-0.25);g.gain.exponentialRampToValueAtTime(0.0001,end);
+  lp.connect(g).connect(ac.destination);
+  const lfo=ac.createOscillator(),lg=ac.createGain();lfo.frequency.value=5.2;lg.gain.value=3;lfo.start(t);lfo.stop(end+0.05);
+  for(const [type,mul,det] of [['sawtooth',1,0],['sawtooth',1,7],['square',2,-5]]){const o=ac.createOscillator(),og=ac.createGain();o.type=type;o.detune.value=det;
+    o.frequency.setValueAtTime(f0*0.82*mul,t);o.frequency.exponentialRampToValueAtTime(f0*mul,t+0.18);o.frequency.setValueAtTime(f0*1.02*mul,brk-0.1);
+    o.frequency.exponentialRampToValueAtTime(f0*1.5*mul,brk+0.06);o.frequency.exponentialRampToValueAtTime(f0*1.53*mul,end);
+    og.gain.value=type==='square'?0.25:0.5;lfo.connect(lg).connect(o.frequency);o.connect(og).connect(lp);o.start(t);o.stop(end+0.05)}
+  if(noiseBuf){noiseHit(t,0.35,'bandpass',900,1400,0.05,1.5);noiseHit(t+0.2,HORN_TIME-0.3,'bandpass',1200,1600,0.025,2)}}// the breath
+// Walls of a city coming down: a deep thud, a long low rumble, and stones cracking and tumbling for a while.
+function collapse(){if(!ac||muted||!noiseBuf)return;const t=ac.currentTime;
+  tone(70,0.9,'sine',0.22,-35);tone(48,1.6,'sine',0.16,-18,0.15);
+  noiseHit(t,0.5,'lowpass',1400,120,0.4,0.7);noiseHit(t+0.1,2.8,'lowpass',380,90,0.26,0.6);noiseHit(t+0.3,2.2,'bandpass',700,250,0.08,0.8);
+  for(let i=0;i<22;i++){const d=0.08+Math.pow(Math.random(),1.4)*2.4;// falling stones, thicker at the start
+    noiseHit(t+d,0.07+Math.random()*0.18,'bandpass',500+Math.random()*2200,150+Math.random()*300,0.06+Math.random()*0.12,1+Math.random()*2);
+    if(i%3===0)tone(90+Math.random()*80,0.18,'sine',0.08,-40,d)}}
 // Like the walls of Jericho, the wave also brings down every crate and stone wall it passes (the outer frame
 // stays), and leaves harmless fires burning in the rubble here and there. The fires are only a picture: they
 // don't hurt anyone and don't set off lamps.
@@ -808,7 +829,9 @@ function updateTrumpet(dt){
     if(f.spark<=0&&f.t>0.3){f.spark=0.15+Math.random()*0.15;// a stray ember now and then
       particles.push({x:f.x+0.35+Math.random()*0.3,y:f.y+0.1,vx:(Math.random()-.5)*0.5,vy:-(1.4+Math.random()),life:0.5,max:0.5,c:'#ffb347',r:0.05,g:-0.5})}}
   jFires=jFires.filter(f=>f.t>0);
-  const w=trumpetWave;if(!w)return;w.r+=10*dt;
+  const w=trumpetWave;if(!w)return;
+  if(w.wait>0){w.wait-=dt;if(w.wait>0)return;shake=Math.max(shake,0.25);collapse()}// the horn has ended: down they come
+  w.r+=10*dt;
   for(const e of enemies){if(BOSS_TYPES.has(e.type)||e.dead||e.dying>0)continue;const [ex,ey]=rpos(e);
     if(Math.hypot(ex-w.x,ey-w.y)<=w.r){e.hp=1;e.inv=0;damageEnemy(e)}}
   let fell=0;
@@ -828,7 +851,7 @@ function drawJFires(){if(!jFires.length)return;
       j=Math.sin(time*18+i*0.9+f.ph)*S*0.07*k;
       ctx.fillStyle=k<0.25?'#fff2b0':k<0.6?'#ffb03a':'#ff5a2a';ctx.beginPath();ctx.arc(cx+j,base-d,w,0,Math.PI*2);ctx.fill()}}
   ctx.restore()}
-function drawTrumpetWave(){const w=trumpetWave;if(!w)return;const cx=(w.x+.5)*S,cy=(w.y+.5)*S,R=w.r*S,fade=Math.max(0,1-w.r/Math.hypot(COLS,ROWS));
+function drawTrumpetWave(){const w=trumpetWave;if(!w||w.wait>0)return;const cx=(w.x+.5)*S,cy=(w.y+.5)*S,R=w.r*S,fade=Math.max(0,1-w.r/Math.hypot(COLS,ROWS));
   ctx.save();ctx.globalCompositeOperation='lighter';
   const g=ctx.createRadialGradient(cx,cy,Math.max(0,R-S*0.9),cx,cy,R);g.addColorStop(0,'rgba(255,230,150,0)');g.addColorStop(0.8,`rgba(255,236,170,${0.35*fade})`);g.addColorStop(1,'rgba(255,240,190,0)');
   ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.fill();
@@ -1633,16 +1656,21 @@ function drawItem(k,it){
     ctx.fillStyle='#fff2b0';flamePath(cx,b-S*0.04,S*0.038,S*0.13,sw*0.6);ctx.fill()}
   else if(it.type==='fire'){ctx.beginPath();ctx.moveTo(cx,cy-S*0.22);
     ctx.quadraticCurveTo(cx+S*0.22,cy+S*0.02,cx,cy+S*0.2);ctx.quadraticCurveTo(cx-S*0.22,cy+S*0.02,cx,cy-S*0.22);ctx.fill()}
-  else if(it.type==='trumpet'){// a trumpet, bell to the right
-    const u=S,y0=cy+u*0.03;ctx.fillStyle=col;
-    ctx.fillRect(cx-u*0.2,y0-u*0.025,u*0.26,u*0.05);
-    ctx.beginPath();ctx.moveTo(cx+u*0.05,y0-u*0.035);ctx.quadraticCurveTo(cx+u*0.15,y0-u*0.05,cx+u*0.22,y0-u*0.14);ctx.lineTo(cx+u*0.22,y0+u*0.14);
-    ctx.quadraticCurveTo(cx+u*0.15,y0+u*0.05,cx+u*0.05,y0+u*0.035);ctx.closePath();ctx.fill();
-    ctx.fillRect(cx-u*0.24,y0-u*0.045,u*0.04,u*0.09);
-    ctx.strokeStyle=col;ctx.lineWidth=Math.max(1.5,u*0.035);ctx.beginPath();ctx.moveTo(cx-u*0.15,y0+u*0.02);ctx.quadraticCurveTo(cx-u*0.15,y0+u*0.12,cx-u*0.05,y0+u*0.12);ctx.lineTo(cx+u*0.04,y0+u*0.12);ctx.quadraticCurveTo(cx+u*0.08,y0+u*0.12,cx+u*0.08,y0+u*0.03);ctx.stroke();
-    for(const vx of[-0.1,-0.04,0.02]){ctx.fillRect(cx+u*vx-u*0.012,y0-u*0.11,u*0.024,u*0.09);ctx.fillRect(cx+u*vx-u*0.025,y0-u*0.125,u*0.05,u*0.025)}
-    const g=0.5+0.5*Math.sin(time*6);ctx.fillStyle=`rgba(255,240,170,${g})`;
-    for(const [sx,sy] of [[0.27,-0.17],[0.29,0.0],[0.27,0.17]]){ctx.beginPath();ctx.arc(cx+sx*u,y0+sy*u,u*0.022,0,Math.PI*2);ctx.fill()}}
+  else if(it.type==='trumpet'){// a ram's horn (shofar): thin mouthpiece low left, curving and flaring up to the right
+    const u=S,P=[[-0.25,0.07],[0.03,0.25],[0.2,-0.15]],hw=t=>0.018+0.07*Math.pow(t,1.4);
+    const pt=t=>{const a=(1-t)*(1-t),b=2*(1-t)*t,c=t*t;return[a*P[0][0]+b*P[1][0]+c*P[2][0],a*P[0][1]+b*P[1][1]+c*P[2][1]]};
+    const nm=t=>{const tx=2*(1-t)*(P[1][0]-P[0][0])+2*t*(P[2][0]-P[1][0]),ty=2*(1-t)*(P[1][1]-P[0][1])+2*t*(P[2][1]-P[1][1]),l=Math.hypot(tx,ty);return[-ty/l,tx/l,tx/l,ty/l]};
+    const N=16,L=[],R=[];for(let i=0;i<=N;i++){const t=i/N,[px,py]=pt(t),[nx,ny]=nm(t),w=hw(t);L.push([px+nx*w,py+ny*w]);R.push([px-nx*w,py-ny*w])}
+    ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(cx+L[0][0]*u,cy+L[0][1]*u);for(const [a,b] of L)ctx.lineTo(cx+a*u,cy+b*u);
+    for(let i=R.length-1;i>=0;i--)ctx.lineTo(cx+R[i][0]*u,cy+R[i][1]*u);ctx.closePath();ctx.fill();
+    ctx.strokeStyle='#b8925a';ctx.lineWidth=Math.max(1,u*0.02);// growth ridges across the horn
+    for(const t of[0.3,0.45,0.6,0.74,0.86]){const [px,py]=pt(t),[nx,ny]=nm(t),w=hw(t)*0.9;
+      ctx.beginPath();ctx.moveTo(cx+(px+nx*w)*u,cy+(py+ny*w)*u);ctx.lineTo(cx+(px-nx*w)*u,cy+(py-ny*w)*u);ctx.stroke()}
+    {const [px,py]=pt(1),[,,tx,ty]=nm(1);ctx.fillStyle='#2d2140';ctx.beginPath();// the open mouth of the horn
+      ctx.ellipse(cx+px*u,cy+py*u,u*0.028,u*hw(1)*0.85,Math.atan2(ty,tx),0,Math.PI*2);ctx.fill()}
+    {const [px,py]=pt(0);ctx.fillStyle='#fffaf0';ctx.beginPath();ctx.arc(cx+px*u,cy+py*u,u*0.024,0,Math.PI*2);ctx.fill()}
+    const g=0.5+0.5*Math.sin(time*6);ctx.fillStyle=`rgba(255,240,170,${g})`;// the blast, sparkling out of the mouth
+    for(const [sx,sy] of [[0.31,-0.2],[0.27,-0.3],[0.33,-0.08]]){ctx.beginPath();ctx.arc(cx+sx*u,cy+sy*u,u*0.022,0,Math.PI*2);ctx.fill()}}
   else if(it.type==='speed'){// a winged boot
     const u=S,fl=Math.sin(time*10+x)*0.08,ox=cx+u*0.03,oy=cy;
     ctx.fillStyle='#ffe7a0';for(const [a,l] of [[0.55,0.22],[0.28,0.19],[0.02,0.15]]){const an=Math.PI+a+fl;
