@@ -56,7 +56,6 @@ div.fg{display:flex;gap:20px;align-items:center;padding:14px 0;border-bottom:1px
 .stats{display:flex;flex-direction:column;gap:10px;padding:14px 16px;background:var(--panel);border:1px solid var(--line);border-radius:5px}
 .stat{display:flex;align-items:baseline;justify-content:space-between;gap:6px;font-variant-numeric:tabular-nums}
 .ctrls{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.ctrls .mini.save{border-color:var(--cyan);color:var(--cyan)}
 .ctrls .mini{width:100%;text-align:center;white-space:nowrap;padding-inline:4px}
 .lbl{font-family:var(--pixel);font-size:.9rem;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
 .stat b{font-family:var(--pixel);font-size:1.5rem;font-weight:400}

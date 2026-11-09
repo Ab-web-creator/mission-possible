@@ -253,6 +253,7 @@ function gen(){
     const dm=bfs(1,1,true),order=['bomb','fire','quick','speed','bomb','shield','fire','quick','heal','reveal'];
     const near=crates.slice().sort((a,b)=>dm[a[0]+a[1]*COLS]-dm[b[0]+b[1]*COLS]);
     order.forEach((t,i)=>{const c=near[Math.min(near.length-1,1+i*3)];if(c&&!hidden[key(c[0],c[1])])hidden[key(c[0],c[1])]=t});
+    if(near[0])hidden[key(near[0][0],near[0][1])]='trumpet';// the Horn of Jericho waits in the crate closest to the Pilgrim
   }else
   {for(let i=0;i<count&&i<crates.length;i++){const [x,y]=crates[i];hidden[key(x,y)]=pool[rand(pool.length)]}
    if(crates.length>count+4){const [x,y]=crates[count+2+rand(Math.min(6,crates.length-count-3))];hidden[key(x,y)]='reveal'}
@@ -2239,9 +2240,9 @@ function draw(){
   if(state==='play'&&!enemies.length&&endWait>0){
     const n=Math.max(1,Math.ceil(END_TIME-endWait)),W=COLS*S,txt='ALL CLEAR · NEXT LEVEL IN '+n;
     ctx.font=`${Math.max(11,S*0.42)}px Silkscreen, monospace`;const tw=ctx.measureText(txt).width+S*0.8;
-    ctx.fillStyle='rgba(18,13,24,.85)';rr(W/2-tw/2,S*1.15,tw,S*0.7,S*0.2);ctx.fill();
+    ctx.fillStyle='rgba(18,13,24,.85)';rr(W/2-tw/2,S*0.12,tw,S*0.76,S*0.2);ctx.fill();// on the outer frame row, so it never hides letters
     ctx.strokeStyle=n<=2&&Math.sin(time*12)>0?'#ff5a5a':'#ffb347';ctx.lineWidth=2;ctx.stroke();
-    ctx.fillStyle='#ffd36b';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,W/2,S*1.5)}
+    ctx.fillStyle='#ffd36b';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,W/2,S*0.5)}
   if(state==='play'&&player&&!player.alive&&player.deathT>0.6){
     const d=player.deathT,W=COLS*S,H=ROWS*S;
     ctx.fillStyle=`rgba(10,6,14,${Math.min(0.6,(d-0.6)*0.5)})`;ctx.fillRect(0,0,W,H);
