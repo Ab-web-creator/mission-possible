@@ -29,5 +29,5 @@ export const ITEMS={
   fullheal:{col:'#ffd23a',label:'Full health!'},
   reveal:{col:'#bff4ff',label:'Light of Truth'},
   quick:{col:'#ff7ad9',label:'Quick Light'},
-  trumpet:{col:'#fff1c2',label:'Trumpet of Jericho'}
+  trumpet:{col:'#d9a35c',label:'Trumpet of Jericho'}
 };

@@ -586,10 +586,10 @@ function iceBreak(n){
   const k=Math.min(10,5+2*n);
   for(let i=0;i<k;i++)tone(2200+Math.random()*3600,0.05+Math.random()*0.12,i%2?'sine':'triangle',0.03+Math.random()*0.025,-Math.random()*400,0.04+i*0.025+Math.random()*0.03);
 }
-function noiseHit(t,dur,type,f0,f1,vol,q=1){const n=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();n.buffer=noiseBuf;n.loop=true;
+function noiseHit(t,dur,type,f0,f1,vol,q=1,out=ac.destination){const n=ac.createBufferSource(),f=ac.createBiquadFilter(),g=ac.createGain();n.buffer=noiseBuf;n.loop=true;
   f.type=type;f.Q.value=q;f.frequency.setValueAtTime(f0,t);f.frequency.exponentialRampToValueAtTime(f1,t+dur);
   g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+dur*0.25);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
-  n.connect(f).connect(g).connect(ac.destination);n.start(t);n.stop(t+dur+0.05)}
+  n.connect(f).connect(g).connect(out);n.start(t);n.stop(t+dur+0.05)}
 function deathGrowl(){if(!ac||muted||!noiseBuf)return;const t=ac.currentTime;
   noiseHit(t,0.9,'lowpass',220,520,0.18,0.7);
   for(const [f,d] of [[55,0],[82.4,0.04]]){const o=ac.createOscillator(),g=ac.createGain(),lfo=ac.createOscillator(),lg=ac.createGain();o.type='sine';o.frequency.value=f;
@@ -812,13 +812,23 @@ function shofar(){if(!ac||muted)return;const t=ac.currentTime,end=t+HORN_TIME-0.
     o.frequency.exponentialRampToValueAtTime(f0*1.5*mul,brk+0.06);o.frequency.exponentialRampToValueAtTime(f0*1.53*mul,end);
     og.gain.value=type==='square'?0.25:0.5;lfo.connect(lg).connect(o.frequency);o.connect(og).connect(lp);o.start(t);o.stop(end+0.05)}
   if(noiseBuf){noiseHit(t,0.35,'bandpass',900,1400,0.05,1.5);noiseHit(t+0.2,HORN_TIME-0.3,'bandpass',1200,1600,0.025,2)}}// the breath
-// Walls of a city coming down: a deep thud, a long low rumble, and stones cracking and tumbling for a while.
-function collapse(){if(!ac||muted||!noiseBuf)return;const t=ac.currentTime;
-  tone(70,0.9,'sine',0.22,-35);tone(48,1.6,'sine',0.16,-18,0.15);
-  noiseHit(t,0.5,'lowpass',1400,120,0.4,0.7);noiseHit(t+0.1,2.8,'lowpass',380,90,0.26,0.6);noiseHit(t+0.3,2.2,'bandpass',700,250,0.08,0.8);
-  for(let i=0;i<22;i++){const d=0.08+Math.pow(Math.random(),1.4)*2.4;// falling stones, thicker at the start
-    noiseHit(t+d,0.07+Math.random()*0.18,'bandpass',500+Math.random()*2200,150+Math.random()*300,0.06+Math.random()*0.12,1+Math.random()*2);
-    if(i%3===0)tone(90+Math.random()*80,0.18,'sine',0.08,-40,d)}}
+// Walls of a city coming down: a huge first crash, a long deep rumble, big blocks slamming down one after another,
+// masonry cracking, and rubble trickling for a few seconds. It all goes through a compressor so it is loud without clipping.
+function collapse(){if(!ac||muted||!noiseBuf)return;const t=ac.currentTime,c=ac.createDynamicsCompressor();
+  c.threshold.value=-18;c.knee.value=10;c.ratio.value=6;c.attack.value=0.004;c.release.value=0.3;
+  const out=ac.createGain();out.gain.value=1.25;c.connect(out).connect(ac.destination);
+  const thud=(f,d,v,at)=>{const o=ac.createOscillator(),g=ac.createGain();o.type='sine';o.frequency.setValueAtTime(f,t+at);
+    o.frequency.exponentialRampToValueAtTime(Math.max(25,f*0.45),t+at+d);g.gain.setValueAtTime(v,t+at);g.gain.exponentialRampToValueAtTime(0.0001,t+at+d);
+    o.connect(g).connect(c);o.start(t+at);o.stop(t+at+d+0.02)};
+  thud(80,1.2,0.5,0);thud(52,2.2,0.4,0.12);thud(38,3,0.3,0.4);// the first great crash
+  noiseHit(t,0.7,'lowpass',2400,110,0.6,0.7,c);noiseHit(t,0.25,'highpass',1800,900,0.25,0.7,c);
+  noiseHit(t+0.1,4,'lowpass',420,70,0.4,0.6,c);noiseHit(t+0.3,3.2,'bandpass',800,220,0.14,0.8,c);// the ground keeps rumbling
+  for(let i=0;i<14;i++){const d=0.25+i*0.2+Math.random()*0.15;// big blocks slamming down, one after another
+    thud(60+Math.random()*50,0.4+Math.random()*0.3,0.22+Math.random()*0.15,d);noiseHit(t+d,0.35,'lowpass',1500,150,0.3+Math.random()*0.2,0.8,c)}
+  for(let i=0;i<45;i++){const d=0.05+Math.pow(Math.random(),1.3)*3.4;// stones cracking and tumbling, thicker at the start
+    noiseHit(t+d,0.05+Math.random()*0.2,'bandpass',400+Math.random()*2600,120+Math.random()*300,0.1+Math.random()*0.18,1+Math.random()*2,c)}
+  for(let i=0;i<30;i++){const d=2+Math.random()*2.5;// rubble and dust settling
+    noiseHit(t+d,0.03+Math.random()*0.06,'highpass',2000+Math.random()*3000,1500,0.04+Math.random()*0.05,1,c)}}
 // Like the walls of Jericho, the wave also brings down every crate and stone wall it passes (the outer frame
 // stays), and leaves harmless fires burning in the rubble here and there. The fires are only a picture: they
 // don't hurt anyone and don't set off lamps.
@@ -831,7 +841,7 @@ function updateTrumpet(dt){
       particles.push({x:f.x+0.35+Math.random()*0.3,y:f.y+0.1,vx:(Math.random()-.5)*0.5,vy:-(1.4+Math.random()),life:0.5,max:0.5,c:'#ffb347',r:0.05,g:-0.5})}}
   jFires=jFires.filter(f=>f.t>0);
   const w=trumpetWave;if(!w)return;
-  if(w.wait>0){w.wait-=dt;if(w.wait>0)return;shake=Math.max(shake,0.25);collapse()}// the horn has ended: down they come
+  if(w.wait>0){w.wait-=dt;if(w.wait>0)return;shake=Math.max(shake,0.6);collapse()}// the horn has ended: down they come
   w.r+=10*dt;
   for(const e of enemies){if(BOSS_TYPES.has(e.type)||e.dead||e.dying>0)continue;const [ex,ey]=rpos(e);
     if(Math.hypot(ex-w.x,ey-w.y)<=w.r){e.hp=1;e.inv=0;damageEnemy(e)}}
@@ -840,8 +850,8 @@ function updateTrumpet(dt){
     if(Math.hypot(x-w.x,y-w.y)>w.r)continue;fell++;
     if(c===CRATE)breakCrate(x,y);else{grid[y][x]=EMPTY;burst(x,y,theme().w,7,3,0.11);burst(x,y,theme().hi,4,2.2,0.07)}
     if(Math.random()<0.3&&Math.hypot(x-ppx,y-ppy)>1.5)jFires.push({x,y,t:1.6+Math.random()*1.4,max:0,ph:Math.random()*9,spark:Math.random()*0.2})}
-  if(fell){shake=Math.max(shake,0.12);w.rumble=(w.rumble||0)-dt;
-    if(w.rumble<=0){w.rumble=0.09;if(ac&&!muted&&noiseBuf)noiseHit(ac.currentTime,0.25,'lowpass',260,700,0.09,0.7)}}
+  if(fell){shake=Math.max(shake,0.32);w.rumble=(w.rumble||0)-dt;
+    if(w.rumble<=0){w.rumble=0.08;if(ac&&!muted&&noiseBuf){const t=ac.currentTime;noiseHit(t,0.3,'lowpass',320,700,0.14,0.7);if(Math.random()<0.5)noiseHit(t,0.12,'bandpass',900+Math.random()*1500,300,0.08,1.5)}}}
   if(w.r>Math.hypot(COLS,ROWS))trumpetWave=null}
 function drawJFires(){if(!jFires.length)return;
   ctx.save();
@@ -1662,14 +1672,16 @@ function drawItem(k,it){
     const pt=t=>{const a=(1-t)*(1-t),b=2*(1-t)*t,c=t*t;return[a*P[0][0]+b*P[1][0]+c*P[2][0],a*P[0][1]+b*P[1][1]+c*P[2][1]]};
     const nm=t=>{const tx=2*(1-t)*(P[1][0]-P[0][0])+2*t*(P[2][0]-P[1][0]),ty=2*(1-t)*(P[1][1]-P[0][1])+2*t*(P[2][1]-P[1][1]),l=Math.hypot(tx,ty);return[-ty/l,tx/l,tx/l,ty/l]};
     const N=16,L=[],R=[];for(let i=0;i<=N;i++){const t=i/N,[px,py]=pt(t),[nx,ny]=nm(t),w=hw(t);L.push([px+nx*w,py+ny*w]);R.push([px-nx*w,py-ny*w])}
-    ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(cx+L[0][0]*u,cy+L[0][1]*u);for(const [a,b] of L)ctx.lineTo(cx+a*u,cy+b*u);
+    const hg=ctx.createLinearGradient(cx+P[0][0]*u,cy+P[0][1]*u,cx+P[2][0]*u,cy+P[2][1]*u);// dark tip, amber body, pale wide end
+    hg.addColorStop(0,'#5a3519');hg.addColorStop(0.35,'#a8692f');hg.addColorStop(0.7,'#d9a35c');hg.addColorStop(1,'#f0d29a');
+    ctx.fillStyle=hg;ctx.beginPath();ctx.moveTo(cx+L[0][0]*u,cy+L[0][1]*u);for(const [a,b] of L)ctx.lineTo(cx+a*u,cy+b*u);
     for(let i=R.length-1;i>=0;i--)ctx.lineTo(cx+R[i][0]*u,cy+R[i][1]*u);ctx.closePath();ctx.fill();
-    ctx.strokeStyle='#b8925a';ctx.lineWidth=Math.max(1,u*0.02);// growth ridges across the horn
+    ctx.strokeStyle='rgba(90,52,22,.55)';ctx.lineWidth=Math.max(1,u*0.02);// growth ridges across the horn
     for(const t of[0.3,0.45,0.6,0.74,0.86]){const [px,py]=pt(t),[nx,ny]=nm(t),w=hw(t)*0.9;
       ctx.beginPath();ctx.moveTo(cx+(px+nx*w)*u,cy+(py+ny*w)*u);ctx.lineTo(cx+(px-nx*w)*u,cy+(py-ny*w)*u);ctx.stroke()}
     {const [px,py]=pt(1),[,,tx,ty]=nm(1);ctx.fillStyle='#2d2140';ctx.beginPath();// the open mouth of the horn
       ctx.ellipse(cx+px*u,cy+py*u,u*0.028,u*hw(1)*0.85,Math.atan2(ty,tx),0,Math.PI*2);ctx.fill()}
-    {const [px,py]=pt(0);ctx.fillStyle='#fffaf0';ctx.beginPath();ctx.arc(cx+px*u,cy+py*u,u*0.024,0,Math.PI*2);ctx.fill()}
+    {const [px,py]=pt(0);ctx.fillStyle='#3d2410';ctx.beginPath();ctx.arc(cx+px*u,cy+py*u,u*0.024,0,Math.PI*2);ctx.fill()}
     const g=0.5+0.5*Math.sin(time*6);ctx.fillStyle=`rgba(255,240,170,${g})`;// the blast, sparkling out of the mouth
     for(const [sx,sy] of [[0.31,-0.2],[0.27,-0.3],[0.33,-0.08]]){ctx.beginPath();ctx.arc(cx+sx*u,cy+sy*u,u*0.022,0,Math.PI*2);ctx.fill()}}
   else if(it.type==='speed'){// a winged boot
