@@ -797,7 +797,7 @@ function arrive(){
 // golden wave across the board that defeats every demon it reaches, except the bosses.
 const TRUMPET_FROM=3,TRUMPET_CHANCE=0.35,BOSS_TYPES=new Set(['giant','lion','idol']);let trumpetWave=null;
 // First the horn sounds one long blast (HORN_TIME); only when it ends does the wave set off and the walls fall.
-const HORN_TIME=2.3;
+const HORN_TIME=3.3;
 function blowTrumpet(x,y){trumpetWave={x,y,r:0,wait:HORN_TIME};shofar()}
 // A ram's horn: a breathy, buzzing low note that scoops up, wavers as it is held, then breaks up to the fifth.
 function shofar(){if(!ac||muted)return;const t=ac.currentTime,end=t+HORN_TIME-0.05,f0=196,brk=t+HORN_TIME-0.65;
@@ -2257,12 +2257,6 @@ function draw(){
     ctx.fillStyle='#3a1416';rr(bx,by,bw,bh,bh/2);ctx.fill();
     const g=ctx.createLinearGradient(bx,0,bx+bw,0);g.addColorStop(0,'#ff2a1a');g.addColorStop(1,'#ffb347');
     ctx.fillStyle=g;rr(bx,by,Math.max(bh,bw*f),bh,bh/2);ctx.fill()}
-  if(state==='play'&&!enemies.length&&endWait>0){
-    const n=Math.max(1,Math.ceil(END_TIME-endWait)),W=COLS*S,txt='ALL CLEAR · NEXT LEVEL IN '+n;
-    ctx.font=`${Math.max(11,S*0.42)}px Silkscreen, monospace`;const tw=ctx.measureText(txt).width+S*0.8;
-    ctx.fillStyle='rgba(18,13,24,.85)';rr(W/2-tw/2,S*0.12,tw,S*0.76,S*0.2);ctx.fill();// on the outer frame row, so it never hides letters
-    ctx.strokeStyle=n<=2&&Math.sin(time*12)>0?'#ff5a5a':'#ffb347';ctx.lineWidth=2;ctx.stroke();
-    ctx.fillStyle='#ffd36b';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(txt,W/2,S*0.5)}
   if(state==='play'&&player&&!player.alive&&player.deathT>0.6){
     const d=player.deathT,W=COLS*S,H=ROWS*S;
     ctx.fillStyle=`rgba(10,6,14,${Math.min(0.6,(d-0.6)*0.5)})`;ctx.fillRect(0,0,W,H);
