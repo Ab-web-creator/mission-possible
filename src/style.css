@@ -179,6 +179,7 @@ kbd{font-family:var(--pixel);font-size:.8rem;color:var(--ink);background:var(--p
 #overlay.wide kbd{background:#1b3352;border-color:#3d6f99}
 #overlay.wide .tlist li::marker{color:var(--ice)}
 .keys .kgap{margin-top:min(2.4vh,22px)}
+.card .knote a{color:var(--ice,#9fd3f5);text-decoration:underline}
 .card .knote{margin-top:auto;padding-top:min(2vh,18px);color:var(--dim);font-size:calc(var(--fs)*.85);line-height:1.45}
 .keys kbd{font-size:.95em;min-width:2.1em;padding:.32em .55em .25em;border-radius:6px;border-bottom-width:4px;margin-right:4px}
 kbd{display:inline-block;min-width:1.7em;text-align:center;font-family:var(--pixel);font-size:.8em;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-bottom-width:3px;border-radius:4px;padding:2px 6px;margin-right:3px}

@@ -41,6 +41,16 @@ npm run dev      # starts the game at http://localhost:5173 and reloads on every
    Every push to `main` now publishes the game at
    `https://<your-name>.github.io/mission-possible/`.
 
+## Playing with slow or no internet
+
+- **Works offline after the first visit.** The site installs a small service worker that keeps the whole game
+  (about 370 kB) on the device. Later visits open instantly, even without internet, and the game can be added
+  to a phone's home screen. New versions download quietly in the background and are used on the next visit.
+- **Fonts are bundled** (from `@fontsource`), so nothing is loaded from Google.
+- **One-file version.** `npm run build` also makes `dist/mission-possible-offline.html` (about 340 kB): the
+  whole game in a single file that can be shared on a USB stick or in a chat and opened by double-clicking.
+  The website offers it as a download on the start screen. Saves in this file are kept separately from the website's.
+
 ## Roadmap
 
 - Split `src/game.js` further: `player.js`, `demons/`, `bombs.js`, `audio.js`, `screens.js`

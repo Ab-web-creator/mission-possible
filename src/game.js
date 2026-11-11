@@ -2423,7 +2423,8 @@ function titleCard(){
         <li>You have <b>6 hearts</b> and lose them half by half.</li>
         <li>Collect every coin to call the <b>Clouds of Hope</b>, and spell <b>G-R-A-C-E</b> for an extra life.</li>
         <li>New demons are introduced as you meet them. Open the <b>Field guide</b> any time to read about them.</li>
-      </ul></section>
+      </ul>
+      ${location.protocol!=='file:'?`<p class="knote dl">Slow internet? <a href="mission-possible-offline.html" download>Download the game as one file</a> to play without internet or share on a USB stick.</p>`:''}</section>
       <section><span class="sec">Pickups</span><div class="legend">
         ${Object.entries(ITEMS).map(([t,i])=>`<div><img class="itic" src="${itemIcon(t)}" alt="">${i.label}</div>`).join('')}
       </div></section>
