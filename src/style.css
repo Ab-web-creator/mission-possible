@@ -195,6 +195,7 @@ kbd{display:inline-block;min-width:1.7em;text-align:center;font-family:var(--pix
 @media (max-width:600px){.tgrid{grid-template-columns:1fr}}
 /* Level picker popup */
 .card:has(#lvlNum){max-width:min(600px,94%)}
+.card:has(#loadBtn){max-width:min(460px,94%)}
 .card:has(#lvlNum) .sec{font-size:.9rem}
 .card:has(#lvlNum) .muted{font-size:1.05rem}
 .card:has(#lvlNum) #pickCancel .sec{font-size:.85rem;margin-left:6px}
@@ -213,6 +214,8 @@ kbd{display:inline-block;min-width:1.7em;text-align:center;font-family:var(--pix
 .card:has(.overh) .startrow{margin-top:22px}
 .card:has(.fgh) .fg div{max-width:40em}
 #fgClose{align-self:flex-start;min-width:220px;padding:16px 48px;font-size:1.2rem}
+.fghead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line)}
+#fgAll{width:auto;min-width:0;flex:none;margin-left:auto;padding:7px 14px;font-size:.8rem}
 /* Phone and tablet notice */
 #mobileNote{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:24px 16px;background:#14243a;text-align:center}
 #mobileNote .mn{display:flex;flex-direction:column;align-items:center;gap:18px;max-width:420px}
