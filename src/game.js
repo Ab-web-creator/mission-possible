@@ -1,6 +1,6 @@
 // Game engine: state, movement, demons' AI, drawing, sound, screens.
 // Data (levels, demons, texts, themes) lives in ./data/ — edit those for content changes.
-import { BASE_FUSE, ETYPES, FAST_SPEED, FAST_TIME, ITEMS, MIN_FUSE, SPEED_MAX, SPEED_STEP } from './data/enemies.js';
+import { BASE_FUSE, ETYPES, FAST_CARRY, FAST_SPEED, FAST_TIME, ITEMS, MIN_FUSE, SPEED_MAX, SPEED_STEP } from './data/enemies.js';
 import { INTRO } from './data/intros.js';
 import { LEVEL23_NEW, LEVEL_MAPS } from './data/levels.js';
 import { LORE, LORE_ORDER } from './data/lore.js';
@@ -1051,9 +1051,11 @@ function choose(e){
   if(T.avoid&&here){const safe=opts.filter(([dx,dy])=>!danger[e.y+dy][e.x+dx]);
     if(safe.length)opts=safe;
     else{const dm=bfs(e.x,e.y,T.ghost);void dm}}
-  // Accusation never turns back unless it has to: a dead end, another demon or fire in the way, or a lamp's blast
-  // where going back is the only safe way (those cells are already left out of opts above)
-  if(e.type==='accuse'&&extraT<=0&&(e.dx||e.dy)){const fw=opts.filter(o=>!(o[0]===-e.dx&&o[1]===-e.dy));if(fw.length)opts=fw}
+  // Accusation turns back only at a dead end (walls, crates, lamps all round) or when another demon blocks the way.
+  // Fire or a coming blast ahead is no reason: it waits for it to pass instead.
+  if(e.type==='accuse'&&extraT<=0&&(e.dx||e.dy)){
+    const wayOn=DLIST.some(([dx,dy])=>!(dx===-e.dx&&dy===-e.dy)&&!blocked(e.x+dx,e.y+dy,T.ghost)&&!enemyAt(e.x+dx,e.y+dy,e));
+    if(wayOn){opts=opts.filter(o=>!(o[0]===-e.dx&&o[1]===-e.dy));if(!opts.length)return null}}
   if((T.ai==='thief'||T.ai==='glutton')&&!here&&extraT<=0){
     if(e.fleeT>0&&player.alive){const [px,py]=occ(player),dp=bfs(px,py,false);let best=null,bd=-1;
       for(const o of opts){const d=dp[(e.x+o[0])+(e.y+o[1])*COLS];if(d!==Infinity&&d>bd){bd=d;best=o}}if(best)return best}
@@ -1432,7 +1434,10 @@ function frame(ts){
   if(state==='clear'){clearT+=dt;updateParticles(dt);
     for(const row of flameT)for(let i=0;i<COLS;i++)if(row[i]>0)row[i]-=dt;
     if(clearT>3.3&&!clearSwitched&&clearLevel===FINAL_LEVEL){clearSwitched=true;startFinale()}
-    if(clearT>3.3&&!clearSwitched){clearSwitched=true;clearLevel=level;level++;startLevel();banner=0}
+    if(clearT>3.3&&!clearSwitched){clearSwitched=true;clearLevel=level;level++;
+      // Shoes of Peace still on at the end of a level give a full FAST_CARRY seconds at the start of the next one.
+      const keepFast=player.fastT>0?FAST_CARRY:0;
+      startLevel();banner=0;if(keepFast){player.fastT=keepFast;player.fastWarn=0;hud()}}
     if(clearT>5.5&&state==='clear'){state='play';banner=0;saveProgress();checkIntros()}}
   // Celebration pose: the arm goes up only while the Pilgrim stands still (after a short moment), and comes
   // down smoothly as soon as he runs again.
@@ -1966,7 +1971,7 @@ function drawEnemy(e){
     eyes(cx,cy-S*0.02,S*0.1,S*0.075,tx,ty,'#24345a');
     // sad brows: raised toward the middle, drooping at the outside
     ctx.strokeStyle='#24345a';ctx.lineWidth=Math.max(1.5,S*0.035);ctx.lineCap='round';ctx.beginPath();
-    for(const sd of[-1,1]){ctx.moveTo(cx+sd*S*0.035,cy-S*0.2);ctx.quadraticCurveTo(cx+sd*S*0.1,cy-S*0.17,cx+sd*S*0.17,cy-S*0.11)}ctx.stroke();
+    for(const sd of[-1,1]){ctx.moveTo(cx+sd*S*0.05,cy-S*0.25);ctx.quadraticCurveTo(cx+sd*S*0.095,cy-S*0.23,cx+sd*S*0.14,cy-S*0.18)}ctx.stroke();
   }else if(e.type==='suspect'){
     const step=e.moving?Math.sin(e.prog*Math.PI*2):0,R=S*0.36,bx=cx,by=cy+S*0.05-Math.abs(step)*S*0.02;
     const wind=e.windup>0;let ad=[e.dx||0,e.dy||1];if(!(ad[0]||ad[1]))ad=[0,1];const spin=e.spun>0?(e.spun-=1/60,Math.sin(e.spun*30)*0.25):0;

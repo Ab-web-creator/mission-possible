@@ -20,7 +20,7 @@ export const ETYPES={
   brute:  {name:'Hatred',  speed:1.35,hp:1, pts:500, dmg:4, ai:'chase', range:10, avoid:true, ghost:false, col:'#7fa845'}
 };
 export const BASE_FUSE=2.8,MIN_FUSE=2.0;
-export const SPEED_STEP=0.8,SPEED_MAX=3.6+SPEED_STEP*6,FAST_SPEED=9,FAST_TIME=15;
+export const SPEED_STEP=0.8,SPEED_MAX=3.6+SPEED_STEP*6,FAST_SPEED=9,FAST_TIME=15,FAST_CARRY=30;
 export const ITEMS={
   bomb:{col:'#ff8a5c',label:'Extra lamp'}, fire:{col:'#ffcf4a',label:'Brighter lamp'},
   speed:{col:'#5fe0c8',label:'Shoes of Peace'},
