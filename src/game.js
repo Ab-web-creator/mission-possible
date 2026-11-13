@@ -1436,8 +1436,10 @@ function frame(ts){
     if(clearT>3.3&&!clearSwitched&&clearLevel===FINAL_LEVEL){clearSwitched=true;startFinale()}
     if(clearT>3.3&&!clearSwitched){clearSwitched=true;clearLevel=level;level++;
       // Shoes of Peace still on at the end of a level give a full FAST_CARRY seconds at the start of the next one.
-      const keepFast=player.fastT>0?FAST_CARRY:0;
-      startLevel();banner=0;if(keepFast){player.fastT=keepFast;player.fastWarn=0;hud()}}
+      // Likewise a Shield of Faith still on gives a full 10 seconds of shield at the start of the next one.
+      const keepFast=player.fastT>0?FAST_CARRY:0,keepShield=player.shieldPick&&player.shield>0;
+      startLevel();banner=0;if(keepFast){player.fastT=keepFast;player.fastWarn=0;hud()}
+      if(keepShield){player.shield=10;player.shieldPick=true;player.warnSec=0}}
     if(clearT>5.5&&state==='clear'){state='play';banner=0;saveProgress();checkIntros()}}
   // Celebration pose: the arm goes up only while the Pilgrim stands still (after a short moment), and comes
   // down smoothly as soon as he runs again.
