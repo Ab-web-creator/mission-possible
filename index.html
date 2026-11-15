@@ -17,7 +17,7 @@
     <div id="intro" class="intro" hidden><img id="introImg" alt=""><div class="introtx"><span class="sec" id="introKind">New demon</span><b id="introName"></b><span id="introDesc"></span><i id="introWis"></i><span class="introtip" id="introTip"></span><span class="introhint" id="introHint">Press any key or click to continue</span></div></div>
   </div>
   <aside class="side">
-    <div class="brandrow"><div class="brand"><span class="w">Mission</span><span class="w"><span class="im">Im</span>possible</span></div><b class="lvlbig" id="hLevel" title="Level">1</b><button class="pname" id="pName" type="button" title="Change your name"></button></div>
+    <div class="brandrow"><div class="brand"><span class="w">Mission</span><span class="w"><span class="im">Im</span>possible</span></div><div class="lvlwrap"><div class="powers"><span class="pw" id="pwSpeed" title="Shoes of Peace" hidden><canvas width="128" height="128"></canvas></span><span class="pw" id="pwShield" title="Shield of Faith" hidden><canvas width="128" height="128"></canvas></span></div><b class="lvlbig" id="hLevel" title="Level">1</b></div><button class="pname" id="pName" type="button" title="Change your name"></button></div>
     <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><clipPath id="halfL"><rect x="0" y="0" width="12" height="24"/></clipPath></defs></svg>
     <div class="heartsline"><div class="hearts-row" id="hHearts" aria-label="Health"></div><span class="livesbadge" title="Lives"><span class="lbl">Lives:</span><b id="hLives">3</b></span></div>
     <div class="stats">
@@ -37,10 +37,7 @@
       <button class="mini" id="btnPause" type="button">Pause</button>
       <button class="mini" id="btnFull" type="button">Full screen</button>
       <button class="mini" id="btnSave" type="button">Save level</button>
-      <button class="mini" id="btnSong" type="button">Load song</button>
-      <button class="mini" id="btnGuide" type="button" style="grid-column:1/-1">Field guide</button>
-      <input type="file" id="songFile" accept="audio/*" hidden>
-      <audio id="embedSong" preload="auto"></audio>
+      <button class="mini" id="btnGuide" type="button">Field guide</button>
     </div>
     <div class="saves">
       <div class="saveshead"><span class="sec">Saved levels <span id="slotCount"></span></span><button class="clearbtn" id="btnClearSaves" type="button" hidden>Delete all</button></div>

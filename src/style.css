@@ -50,6 +50,11 @@ div.fg{display:flex;gap:20px;align-items:center;padding:14px 0;border-bottom:1px
 .brand{font-family:var(--display);font-size:1.9rem;letter-spacing:.02em;line-height:1;filter:drop-shadow(0 2px 0 #0a1524)}
 /* Ice-gradient game title, shared by the start screen and the side panel */
 .brand .w{display:block}
+.lvlwrap{display:flex;align-items:center;gap:10px}
+.powers{display:flex;gap:8px}
+.pw{display:flex;flex-direction:column;align-items:center;gap:1px}
+.pw[hidden]{display:none}
+.pw canvas{width:64px;height:64px;margin:-9px}
 .lvlbig{font-family:var(--display);font-weight:400;font-size:4.2rem;line-height:.9;font-variant-numeric:tabular-nums;filter:drop-shadow(0 3px 0 #0a1524)}
 .brand .w,.lvlbig,#overlay.wide h1{background:linear-gradient(180deg,#ffffff 15%,#bfe6ff 50%,#6fb6e8 90%);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:none}
 .brand .im,#overlay.wide h1 .im{opacity:1;background:linear-gradient(180deg,#5d7fa3 15%,#3f6386 90%);-webkit-background-clip:text;background-clip:text;color:transparent}

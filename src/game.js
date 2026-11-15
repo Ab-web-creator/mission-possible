@@ -614,7 +614,7 @@ const sfx={
 };
 
 /* ---------- music ---------- */
-const music={on:true,mode:'chip',el:null,timer:null,step:0,next:0,playing:false,gain:null,name:''};
+const music={on:true,timer:null,step:0,next:0,playing:false,gain:null};
 let STEP=60/132/4;
 const LEAD=[69,0,72,0,76,0,74,72, 71,0,67,0,69,0,0,0, 69,0,72,0,76,0,79,77, 76,0,74,0,72,0,71,0,
             72,0,74,0,76,0,77,76, 74,0,72,0,71,0,67,0, 69,0,0,72,71,0,69,0, 68,0,71,0,69,0,0,0];
@@ -639,10 +639,8 @@ function schedule(){
   }
 }
 function musicStart(){
-  clearInterval(music.fadeT);clearTimeout(music.stopT);
+  clearTimeout(music.stopT);
   const fresh=music.lastLevel!==level;music.lastLevel=level;
-  if(music.mode==='file'&&music.el){if(fresh)try{music.el.currentTime=0}catch(e){}
-    music.el.volume=0.6;const r=music.el.play();if(r&&r.catch)r.catch(()=>{});return}
   if(!ac)return;
   if(!music.gain){music.gain=ac.createGain();music.gain.connect(ac.destination)}
   const t=ac.currentTime;music.gain.gain.cancelScheduledValues(t);music.gain.gain.setValueAtTime(0.5,t);
@@ -650,24 +648,17 @@ function musicStart(){
   music.next=t+0.05;clearInterval(music.timer);music.timer=setInterval(schedule,25);
 }
 function musicStop(fade){
-  clearInterval(music.fadeT);clearTimeout(music.stopT);
+  clearTimeout(music.stopT);
   if(fade){
-    if(music.mode==='file'&&music.el){const el=music.el;let v=el.volume;
-      music.fadeT=setInterval(()=>{v-=0.03;if(v<=0){clearInterval(music.fadeT);el.pause();el.volume=0.6}else el.volume=v},50)}
-    else if(ac&&music.gain){const t=ac.currentTime;music.gain.gain.cancelScheduledValues(t);
+    if(ac&&music.gain){const t=ac.currentTime;music.gain.gain.cancelScheduledValues(t);
       music.gain.gain.setValueAtTime(music.gain.gain.value,t);music.gain.gain.linearRampToValueAtTime(0,t+1.6);
       music.stopT=setTimeout(()=>{clearInterval(music.timer);music.timer=null},1700)}
     return}
-  clearInterval(music.timer);music.timer=null;if(music.el)music.el.pause();
+  clearInterval(music.timer);music.timer=null;
 }
 function musicTick(){
   const want=music.on&&state==='play'&&!!enemies&&enemies.length>0&&!!player&&player.alive;
   if(want!==music.playing){music.playing=want;want?musicStart():musicStop(state==='play'||state==='clear')}
-}
-function useSong(el,name){
-  const was=music.playing;if(was){musicStop();music.playing=false}
-  music.el=el;el.loop=true;music.mode='file';music.name=name;
-  $('btnSong').textContent='Song: '+(name.length>18?name.slice(0,17)+'…':name);
 }
 
 /* ---------- particles ---------- */
@@ -769,6 +760,19 @@ function updateBombs(dt){
     if(b.t<=0)explode(b);
   }
 }
+// Seconds until the soonest lit lamp whose light will reach (x,y), or Infinity when none will.
+function blastIn(x,y){let t=Infinity;
+  for(const b of bombs){if(b.t>=t)continue;let hit=b.x===x&&b.y===y;
+    for(const [dx,dy] of DLIST){if(hit)break;for(let r=1;r<=b.range;r++){const cx=b.x+dx*r,cy=b.y+dy*r;
+      if(!inB(cx,cy)||grid[cy][cx]===WALL)break;if(cx===x&&cy===y){hit=true;break}if(grid[cy][cx]===CRATE||bombAt(cx,cy))break}}
+    if(hit)t=b.t}
+  return t}
+/* A soft tick while the Pilgrim stands where a lamp's light will reach, faster as it nears going off. */
+function blastTick(dt){const p=player;
+  if(!p.alive||p.shield>0||!enemies.length){p.tickT=0;return}
+  const [x,y]=occ(p),t=blastIn(x,y);if(t>2.4){p.tickT=0;return}
+  p.tickT=(p.tickT||0)-dt;
+  if(p.tickT<=0){p.tickT=Math.max(0.09,Math.min(0.45,t*0.2));tone(t<0.8?1500:1150,0.035,'square',0.035)}}
 function computeDanger(){
   for(const row of danger)row.fill(0);
   for(const b of bombs){if(b.t>1.9)continue;danger[b.y][b.x]=1;
@@ -1394,7 +1398,7 @@ function update(dt){
     for(const sp of $('extraRow').children)sp.classList.toggle('avail',onBoard.has(sp.textContent))}
   if(extraT>0){extraT-=dt;if(extraT<=0){extraT=0;floatText(player.x,player.y,'Extra game over','#c46bff');hud()}}
   for(const row of flameT)for(let i=0;i<COLS;i++)if(row[i]>0)row[i]-=dt;
-  updateBombs(dt);updateMelts(dt);computeDanger();updatePlayer(dt);
+  updateBombs(dt);updateMelts(dt);computeDanger();updatePlayer(dt);blastTick(dt);
   if(state!=='play')return;
   if(bombHeld&&player.alive&&!player.moving)placeBomb();
   updateTrumpet(dt);updateEnemies(dt);updateShots(dt);checkHits();updateParticles(dt);
@@ -1436,17 +1440,17 @@ function frame(ts){
     if(clearT>3.3&&!clearSwitched&&clearLevel===FINAL_LEVEL){clearSwitched=true;startFinale()}
     if(clearT>3.3&&!clearSwitched){clearSwitched=true;clearLevel=level;level++;
       // Shoes of Peace still on at the end of a level give a full FAST_CARRY seconds at the start of the next one.
-      // Likewise a Shield of Faith still on gives a full 10 seconds of shield at the start of the next one.
+      // Likewise a Shield of Faith still on gives a full FAST_CARRY seconds of shield at the start of the next one.
       const keepFast=player.fastT>0?FAST_CARRY:0,keepShield=player.shieldPick&&player.shield>0;
       startLevel();banner=0;if(keepFast){player.fastT=keepFast;player.fastWarn=0;hud()}
-      if(keepShield){player.shield=10;player.shieldPick=true;player.warnSec=0}}
+      if(keepShield){player.shield=FAST_CARRY;player.shieldPick=true;player.warnSec=0}}
     if(clearT>5.5&&state==='clear'){state='play';banner=0;saveProgress();checkIntros()}}
   // Celebration pose: the arm goes up only while the Pilgrim stands still (after a short moment), and comes
   // down smoothly as soon as he runs again.
   if(player){player.stillT=player.moving?0:(player.stillT||0)+dt;
     const want=player.alive&&player.stillT>0.2&&((state==='play'&&enemies&&!enemies.length)||(state==='clear'&&!clearSwitched))?1:0;
     player.cheer=(player.cheer||0)+(want-(player.cheer||0))*Math.min(1,dt*(want?5:12))}
-  musicTick();tickIntro(dt);if(player&&player.fastT>0&&Math.ceil(player.fastT)!==player.fastShown){player.fastShown=Math.ceil(player.fastT);hud()}
+  musicTick();tickIntro(dt);drawPowers();if(player&&player.fastT>0&&Math.ceil(player.fastT)!==player.fastShown){player.fastShown=Math.ceil(player.fastT);hud()}
   document.documentElement.classList.toggle('nocur',(state==='play'||state==='clear')&&performance.now()-lastMouse>1500);
   draw();requestAnimationFrame(frame);
 }
@@ -2307,7 +2311,30 @@ function draw(){
     else if(e.lean>0.01){const k=e.lean*S;ctx.save();ctx.translate(e.ldx*k,e.ldy*k);drawEnemy(e);ctx.restore()}
     else drawEnemy(e)}
   drawShots();
-  drawPlayer();drawParticles();
+  // A lamp the Pilgrim stands on is hidden behind him, so its glow on the floor around him grows wider
+  // and turns from warm amber to a red pulse (faster and faster) as it nears going off.
+  if(player.alive){const [px,py]=rpos(player);
+    for(const b of bombs){const d=Math.hypot(b.x-px,b.y-py);if(d>=0.8)continue;
+      const near=Math.min(1,(0.8-d)/0.3),urg=Math.max(0,Math.min(1,1-b.t/(b.f||2.4))),cx=(b.x+.5)*S,cy=(b.y+.55)*S;
+      const pulse=0.5+0.5*Math.sin(time*(5+22*urg*urg)),R=S*(0.6+0.55*urg+0.08*pulse*urg);
+      const g=Math.round(170-130*urg),bl=Math.round(70-50*urg),a=near*(0.3+0.25*urg+0.3*pulse*urg);
+      const gr=ctx.createRadialGradient(cx,cy,0,cx,cy,R);
+      gr.addColorStop(0,`rgba(255,${g},${bl},${a})`);gr.addColorStop(0.55,`rgba(255,${g},${bl},${a*0.55})`);gr.addColorStop(1,`rgba(255,${g},${bl},0)`);
+      ctx.save();ctx.globalCompositeOperation='lighter';ctx.fillStyle=gr;ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.fill();ctx.restore()}}
+  drawPlayer();
+  // ...and the tip of its flame peeks out above his head: taller and flickering faster as it nears going off,
+  // flashing white in the last half second like the lamp itself.
+  if(player.alive){const [px,py]=rpos(player);
+    for(const b of bombs){const d=Math.hypot(b.x-px,b.y-py);if(d>=0.8)continue;
+      const near=Math.min(1,(0.8-d)/0.3),urg=Math.max(0,Math.min(1,1-b.t/(b.f||2.4))),fast=b.t<0.8;
+      const fl=Math.sin(time*(fast?30:14)+b.x*3)*0.5+Math.sin(time*(fast?47:23)+b.y)*0.5;
+      const cx=(px+.5)*S,base=(py+.52)*S-S*0.4,H=S*(0.2+0.25*urg+0.03*fl),W=S*(0.08+0.04*urg),sway=fl*S*0.035;
+      const blink=b.t<0.5&&Math.sin(time*40)>0;
+      ctx.save();ctx.globalAlpha=near;
+      ctx.fillStyle=blink?'#fff6d0':'#ff6a1c';flamePath(cx,base,W,H,sway);ctx.fill();
+      ctx.fillStyle='#ffb52a';flamePath(cx,base-S*0.01,W*0.72,H*0.78,sway*0.8);ctx.fill();
+      ctx.fillStyle='#fff2b0';flamePath(cx,base-S*0.02,W*0.42,H*0.5,sway*0.6);ctx.fill();ctx.restore()}}
+  drawParticles();
   ctx.setTransform(DPR,0,0,DPR,-S*DPR,-S*DPR);
   if(state==='play'&&banner>0&&!introOpen){const a=Math.min(1,banner/0.5);
     if(isBoss()){const k=bossK(),pl=k>1?'S':'';
@@ -2404,6 +2431,20 @@ function renderHearts(){
     h+=`<svg viewBox="0 0 24 22"><path class="bg" d="${HP}"/>${v>=2?`<path class="fg" d="${HP}"/>`:v===1?`<path class="fg" d="${HP}" clip-path="url(#halfL)"/>`:''}</svg>`}
   const el=$('hHearts');el.innerHTML=h;el.classList.toggle('low',hp<=4);
 }
+/* Shoes of Peace and Shield of Faith shown beside the level number while they last (also through the
+   level-clear pause, since both carry over into the next level). Drawn once with the pickup's own art. */
+function drawPowers(){
+  const on=player&&(state==='play'||state==='pause'||state==='clear');
+  for(const [type,t] of [['speed',on&&player.fastT>0?player.fastT:0],['shield',on&&player.shieldPick&&player.shield>0?player.shield:0]]){
+    const el=$(type==='speed'?'pwSpeed':'pwShield');
+    if(t<=0){if(!el.hidden)el.hidden=true;continue}
+    el.style.opacity=t<3&&Math.sin(time*(t<1.2?40:18))>0?0.25:1;
+    if(!el.hidden)continue;
+    el.hidden=false;// drawn once, standing still (time=0 stops the bob and the wing flutter)
+    const c=el.firstChild,oc=ctx,os=S,ot=time;ctx=c.getContext('2d');S=c.width;time=0;
+    try{ctx.clearRect(0,0,S,S);drawItem('0,0',{type,life:99})}finally{ctx=oc;S=os;time=ot}
+  }
+}
 function hud(){
   $('hLevel').textContent=level;$('hScore').textContent=score;$('hBest').textContent=Math.max(best,score);
   $('hLives').textContent=Math.max(0,lives);
@@ -2443,6 +2484,7 @@ function titleCard(){
         <dt>${k('P')}</dt><dd>Pause</dd>
         <dt>${k('M')}</dt><dd>Music on/off</dd>
         <dt>${k('F')}</dt><dd>Full screen</dd>
+        <dt>${k('Q')}</dt><dd>Quit (close the page)</dd>
       </dl>
       <p class="knote">Press <b>Save level</b> while playing to keep the current board, hearts and power-ups; your saves appear under <b>Saved levels</b> on the right.</p></section>
     </div>`,true);
@@ -2493,10 +2535,6 @@ function toggleMusic(){music.on=!music.on;$('btnMusic').textContent=music.on?'Mu
 $('btnMusic').onclick=toggleMusic;
 addEventListener('keydown',e=>{if(e.target.tagName!=='INPUT'&&e.code==='KeyM'&&!e.repeat)toggleMusic()});
 addEventListener('keydown',e=>{if(e.target.tagName!=='INPUT'&&e.code==='KeyG'&&!e.repeat)toggleLag()});
-$('btnSong').onclick=()=>$('songFile').click();
-$('songFile').onchange=e=>{const f=e.target.files&&e.target.files[0];if(!f)return;
-  const el=new Audio(URL.createObjectURL(f));useSong(el,f.name.replace(/\.[^.]+$/,''));audio()};
-{const emb=$('embedSong');if(emb.getAttribute('src'))useSong(emb,emb.dataset.name||'Built-in song')}
 $('btnSound').onclick=()=>{muted=!muted;$('btnSound').textContent=muted?'Sound off':'Sound on';if(!muted)audio()};
 let lastMouse=-1e9;
 addEventListener('mousemove',e=>{if(Math.abs(e.movementX)+Math.abs(e.movementY)>3)lastMouse=performance.now()});
@@ -2510,6 +2548,9 @@ function toggleFull(){
 }
 $('btnFull').onclick=toggleFull;
 addEventListener('keydown',e=>{if(e.target.tagName!=='INPUT'&&e.code==='KeyF'&&!e.repeat)toggleFull()});
+// Browsers only let a script close a tab it opened itself, so if close() is ignored, leave the game for a blank page instead.
+function quitGame(){pause();window.close();setTimeout(()=>{if(!window.closed)location.replace('about:blank')},150)}
+addEventListener('keydown',e=>{if(e.target.tagName!=='INPUT'&&e.code==='KeyQ'&&!e.repeat){e.preventDefault();quitGame()}});
 const onFs=()=>{$('btnFull').textContent=isFull()?'Exit full screen':'Full screen';resize()};
 document.addEventListener('fullscreenchange',onFs);document.addEventListener('webkitfullscreenchange',onFs);
 
